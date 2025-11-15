@@ -5,6 +5,7 @@ import Form from "../components/Form";
 import PortfolioTable from "../components/PortfolioTable";
 import TopCoins from "../components/TopCoins";
 import CoinGeckoAttribution from "../components/CoinGeckoAttribution";
+import DataSourceSummary from "../components/DataSourceSummary";
 import { useCurrency } from "../context/CurrencyContext";
 import useCoins from "../hooks/useCoins";
 import useChart from "../hooks/useChart";

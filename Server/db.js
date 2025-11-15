@@ -2,10 +2,8 @@ const mongoose = require("mongoose");
 require("dotenv").config();
 const MONGODB_URI = process.env.MONGODB_URI;
 
-mongoose.connect(MONGODB_URI, {
-	useNewUrlParser: true,
-	useUnifiedTopology: true,
-});
+// Connect using Mongoose 8 defaults (deprecated options removed)
+mongoose.connect(MONGODB_URI);
 
 const db = mongoose.connection;
 

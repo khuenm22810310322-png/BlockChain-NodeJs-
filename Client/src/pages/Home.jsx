@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Table from "../components/Table";
 import Form from "../components/Form";
 import LoginWarning from "../components/LoginWarning";
 import CoinGeckoAttribution from "../components/CoinGeckoAttribution";
+import DataSourceSummary from "../components/DataSourceSummary";
 import { useAuth } from "../context/AuthContext";
 import useTopCoins from "../hooks/useTopCoins";
 import Searchbar from "../components/Searchbar";
+import CoinGrid from "../components/CoinGrid";
 
 const Home = ({
 	watchlist,
@@ -18,6 +20,11 @@ const Home = ({
 	const { isAuthenticated } = useAuth();
 	const { coins, loading, error } = useTopCoins();
 	const [search, setSearch] = useState("");
+	const [viewMode, setViewMode] = useState(() => localStorage.getItem('viewMode') || 'list'); // 'list' | 'grid'
+
+	useEffect(() => {
+		localStorage.setItem('viewMode', viewMode);
+	}, [viewMode]);
 
 	const filteredCoins = coins.filter(
 		(coin) =>
@@ -29,7 +36,7 @@ const Home = ({
 		<>
 			{!form ? (
 				<div className="p-4 pb-24 font-sans ">
-					<div className="w-full max-w-3xl mx-auto text-center flex flex-col items-center mt-7 sm:mt-12 mb-12 gap-4">
+					<div className="w-full max-w-3xl mx-auto text-center flex flex-col items-center mt-7 sm:mt-12 mb-6 gap-4">
 						<h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 dark:text-white">
 							Track Cryptocurrency Prices
 						</h1>
@@ -45,17 +52,53 @@ const Home = ({
 						<CoinGeckoAttribution />
 					</div>
 
-					<div className="w-full max-w-6xl mx-auto overflow-x-auto [scrollbar-width:none]">
-						<Table
-							loading={loading}
-							error={error}
-							coins={filteredCoins}
-							toggleWatchlist={toggleWatchlist}
-							watchlist={watchlist}
-							message={""}
-							toggleForm={toggleForm}
-						/>
+					{/* View mode switch */}
+					<div className="w-full max-w-6xl mx-auto flex items-center justify-end mb-4">
+						<div className="inline-flex items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+							<button
+								className={`px-3 py-2 text-sm font-medium ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+								onClick={() => setViewMode('list')}
+							>
+								List
+							</button>
+							<button
+								className={`px-3 py-2 text-sm font-medium ${viewMode === 'grid' ? 'bg-blue-600 text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+								onClick={() => setViewMode('grid')}
+							>
+								Grid
+							</button>
+						</div>
 					</div>
+
+					{/* Data Source Summary */}
+					<div className="w-full max-w-6xl mx-auto mt-8">
+						<DataSourceSummary coins={filteredCoins} />
+					</div>
+
+					{viewMode === 'list' ? (
+						<div className="w-full max-w-6xl mx-auto overflow-x-auto [scrollbar-width:none]">
+							<Table
+								loading={loading}
+								error={error}
+								coins={filteredCoins}
+								toggleWatchlist={toggleWatchlist}
+								watchlist={watchlist}
+								message={""}
+								toggleForm={toggleForm}
+							/>
+						</div>
+					) : (
+						<div className="w-full max-w-6xl mx-auto">
+							<CoinGrid
+								loading={loading}
+								error={error}
+								coins={filteredCoins}
+								toggleWatchlist={toggleWatchlist}
+								watchlist={watchlist}
+								toggleForm={toggleForm}
+							/>
+						</div>
+					)}
 				</div>
 			) : isAuthenticated ? (
 				<Form

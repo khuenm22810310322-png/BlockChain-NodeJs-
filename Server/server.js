@@ -4,12 +4,33 @@ const db = require("./db");
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
 const User = require("./models/Users");
+const { getMergedPriceData } = require("./chainlinkService");
+const axios = require("axios");
 const PORT = process.env.PORT || 3000;
 const app = express();
 
+// We'll attach socket.io later after creating the HTTP server
+let io;
+
+// Simple endpoint-level cache for Top 100 to survive rate limits
+let top100Cache = { data: [], timestamp: 0 };
+const TOP100_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+
+// CORS: allow production client and local dev (Vite)
+const allowedOrigins = [
+	process.env.CLIENT || "https://cryptotrack-ultimez.vercel.app",
+	"http://localhost:5173",
+];
 app.use(
 	cors({
-		origin: process.env.CLIENT || "https://cryptotrack-ultimez.vercel.app",
+		origin: function (origin, callback) {
+			// allow requests with no origin (like curl, Postman)
+			if (!origin) return callback(null, true);
+			if (allowedOrigins.includes(origin)) {
+				return callback(null, true);
+			}
+			return callback(new Error("Not allowed by CORS"));
+		},
 		credentials: true,
 	})
 );
@@ -22,6 +43,11 @@ app.get("/", (req, res) => {
 	return res.send("API is running");
 });
 
+// Test endpoint
+app.get("/test", (req, res) => {
+	return res.json({ message: "Test endpoint working", timestamp: new Date() });
+});
+
 app.post("/register", async (req, res) => {
 	const { username, password } = req.body;
 	try {
@@ -31,10 +57,8 @@ app.post("/register", async (req, res) => {
 		}
 
 		const newUser = new User({ username, password });
-		const response = await newUser.save();
-		return res
-			.status(200)
-			.json({ message: "User Registered Successfully" });
+		await newUser.save();
+		return res.status(200).json({ message: "User Registered Successfully" });
 	} catch (err) {
 		return res.status(500).json(err);
 	}
@@ -78,7 +102,7 @@ app.get(
 
 			return res.json({ watchlist: user.watchlist });
 		} catch (err) {
-			return res.json(500).json(err);
+			return res.status(500).json(err);
 		}
 	}
 );
@@ -96,7 +120,7 @@ app.get(
 
 			return res.json(user.portfolio);
 		} catch (err) {
-			return res.json(500).json(err);
+			return res.status(500).json(err);
 		}
 	}
 );
@@ -227,5 +251,79 @@ app.put(
 		}
 	}
 );
+// Market endpoints (Hybrid: Chainlink preferred, CoinGecko fallback)
+app.get("/api/market/top100", async (req, res) => {
+	try {
+		const topCoinsResponse = await axios.get(
+			"https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false",
+			{ 
+				timeout: 30000, // 30 seconds
+				headers: { 'Accept': 'application/json' }
+			}
+		);
+		const topCoinIds = topCoinsResponse.data.map((coin) => coin.id);
 
-app.listen(PORT);
+		const priceData = await getMergedPriceData(topCoinIds);
+				// Save cache on success
+				top100Cache = { data: Array.isArray(priceData) ? priceData : [], timestamp: Date.now() };
+				// Emit update to connected websocket clients
+				try {
+					if (io) io.emit('top100:update', top100Cache.data);
+				} catch (e) {
+					console.error('Socket emit error:', e?.message || e);
+				}
+				return res.status(200).json(priceData);
+	} catch (error) {
+			console.error("Error in /api/market/top100:", error.message);
+		// If rate limited or any error, return cached data (even if expired)
+		if (top100Cache.data && top100Cache.data.length > 0) {
+			console.log("Using cached Top100 due to upstream error/rate limit");
+			return res.status(200).json(top100Cache.data);
+		}
+		// No cache available, return empty array to keep client stable
+		return res.status(200).json([]);
+	}
+});
+
+// Watchlist/Portfolio price fetch by CoinGecko IDs
+app.post("/api/prices", async (req, res) => {
+	try {
+		const { coinIds } = req.body;
+		if (!coinIds || !Array.isArray(coinIds) || coinIds.length === 0) {
+			return res
+				.status(400)
+				.json({ error: "Yêu cầu phải có một mảng 'coinIds'." });
+		}
+		const priceData = await getMergedPriceData(coinIds);
+		return res.status(200).json(priceData);
+	} catch (error) {
+			console.error("Error in /api/prices:", error.message);
+			// Always return an array to keep client stable
+			return res.status(200).json([]);
+	}
+});
+
+// Create HTTP server and attach socket.io
+const http = require('http');
+const server = http.createServer(app);
+const { Server } = require('socket.io');
+
+io = new Server(server, {
+	cors: {
+		origin: allowedOrigins,
+		methods: ['GET', 'POST']
+	}
+});
+
+io.on('connection', (socket) => {
+	console.log('Socket connected:', socket.id);
+	// Optionally emit current cached top100 on connect
+	if (top100Cache && top100Cache.data && top100Cache.data.length > 0) {
+		socket.emit('top100:update', top100Cache.data);
+	}
+});
+
+server.listen(PORT, () => {
+	console.log(`Server is running on port ${PORT}`);
+	console.log(`API endpoint: http://localhost:${PORT}/api/market/top100`);
+});

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
+import { marketAPI } from "../services/api"; // <-- THÊM
 
 export default function useCoins(portfolio) {
-	const portfolioCoins = Object.keys(portfolio);
+	const portfolioCoins = Object.keys(portfolio); // Đây là mảng ID CoinGecko
 	const [coins, setCoins] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
@@ -18,12 +19,11 @@ export default function useCoins(portfolio) {
 			}
 
 			try {
-				const coinIds = portfolioCoins.join(",");
-				const res = await fetch(
-					`https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${coinIds}&order=market_cap_desc&sparkline=false`
-				);
-				if (!res.ok) throw new Error("An error occured");
-				const data = await res.json();
+				// BỎ: const coinIds = portfolioCoins.join(",");
+				// BỎ: const res = await fetch(`https...`);
+				// BỎ: const data = await res.json();
+				// THAY THẾ BẰNG:
+				const data = await marketAPI.getPrices(portfolioCoins); // Gọi backend
 				setCoins(data);
 			} catch (err) {
 				setError(err.message);
@@ -33,7 +33,7 @@ export default function useCoins(portfolio) {
 		};
 
 		searchCoins();
-	}, [portfolio]);
+	}, [portfolio]); // Giữ dependency array, nó là đúng
 
 	return { coins, loading, error };
 }

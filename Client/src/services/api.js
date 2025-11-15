@@ -58,4 +58,19 @@ export const watchlistAPI = {
 	},
 };
 
+// === THÊM ĐỐI TƯỢNG MỚI NÀY ===
+export const marketAPI = {
+	getTop100: async () => {
+		const response = await api.get("/api/market/top100"); // Gọi backend
+		const d = response.data;
+		return Array.isArray(d) ? d : (Array.isArray(d?.data) ? d.data : []);
+	},
+	getPrices: async (coinIds) => {
+		// coinIds là mảng ID CoinGecko: ["bitcoin", "ethereum"]
+		const response = await api.post("/api/prices", { coinIds }); // Gọi backend
+		const d = response.data;
+		return Array.isArray(d) ? d : (Array.isArray(d?.data) ? d.data : []);
+	},
+};
+
 export default api;

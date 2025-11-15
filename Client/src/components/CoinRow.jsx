@@ -1,5 +1,7 @@
 import StarOutlineIcon from "@mui/icons-material/StarOutline";
 import StarIcon from "@mui/icons-material/Star";
+import { Link as LinkIcon } from "@mui/icons-material";
+import { TrendingUp as TrendingUpIcon } from "@mui/icons-material";
 import { useCurrency } from "../context/CurrencyContext";
 import { useAuth } from "../context/AuthContext";
 import getColor from "../utils/color";
@@ -9,6 +11,31 @@ const CoinRow = ({ coin, isStarred, toggleWatchlist, toggleForm }) => {
 	const { currency, formatCurrency } = useCurrency();
 
 	const color = getColor(coin.price_change_percentage_24h);
+	
+	// Data source indicator component
+	const DataSourceIndicator = ({ source }) => {
+		const isChainlink = source === 'chainlink';
+		
+		return (
+			<div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+				isChainlink 
+					? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
+					: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+			}`}>
+				{isChainlink ? (
+					<>
+						<LinkIcon className="w-3 h-3" />
+						<span>Chainlink</span>
+					</>
+				) : (
+					<>
+						<TrendingUpIcon className="w-3 h-3" />
+						<span>CoinGecko</span>
+					</>
+				)}
+			</div>
+		);
+	};
 	return (
 		<tr className="border-b border-gray-200 hover:bg-gray-50 transition-all duration-150 dark:hover:bg-gray-800 dark:border-b dark:border-gray-700">
 			<td className="px-6 py-4 text-center font-medium text-gray-700 dark:text-white">
@@ -28,6 +55,7 @@ const CoinRow = ({ coin, isStarred, toggleWatchlist, toggleForm }) => {
 						<p className="text-gray-500 text-sm uppercase dark:text-gray-400">
 							{coin.symbol}
 						</p>
+						<DataSourceIndicator source={coin.dataSource || 'coingecko'} />
 					</div>
 				</div>
 			</td>
