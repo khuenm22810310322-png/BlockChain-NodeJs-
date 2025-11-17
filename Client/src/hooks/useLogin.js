@@ -4,7 +4,7 @@ import { toast } from "react-toastify";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-export default function useLogin(username, password, form, toggleForm ) {
+export default function useLogin(username, password, onSuccess) {
 	const [error, setError] = useState("");
 	const [loading, setLoading] = useState(false);
 	const { login } = useAuth();
@@ -26,7 +26,9 @@ export default function useLogin(username, password, form, toggleForm ) {
 				pauseOnHover: false,
 				draggable: true,
 			});
-			if (form) toggleForm();
+			if (typeof onSuccess === "function") {
+				onSuccess();
+			}
 			navigate("/dashboard");
 		} catch (err) {
 			setError(err.response?.data?.error || "Login failed");

@@ -1,73 +1,43 @@
 import StarOutlineIcon from "@mui/icons-material/StarOutline";
 import StarIcon from "@mui/icons-material/Star";
 import { Link as LinkIcon } from "@mui/icons-material";
-import { TrendingUp as TrendingUpIcon } from "@mui/icons-material";
 import { useCurrency } from "../context/CurrencyContext";
 import { useAuth } from "../context/AuthContext";
 import getColor from "../utils/color";
 
-const CoinRow = ({ coin, isStarred, toggleWatchlist, toggleForm }) => {
+const CoinRow = ({ coin, isStarred, toggleWatchlist, onAddClick, onRequireLogin }) => {
 	const { isAuthenticated } = useAuth();
 	const { currency, formatCurrency } = useCurrency();
 
 	const color = getColor(coin.price_change_percentage_24h);
-	
-	// Data source indicator component
-	const DataSourceIndicator = ({ source }) => {
-		const isChainlink = source === 'chainlink';
-		
-		return (
-			<div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-				isChainlink 
-					? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
-					: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
-			}`}>
-				{isChainlink ? (
-					<>
-						<LinkIcon className="w-3 h-3" />
-						<span>Chainlink</span>
-					</>
-				) : (
-					<>
-						<TrendingUpIcon className="w-3 h-3" />
-						<span>CoinGecko</span>
-					</>
-				)}
-			</div>
-		);
-	};
+	const priceText =
+		typeof coin.current_price === "number"
+			? formatCurrency(coin.current_price * currency[1], 6)
+			: "-";
+	const pctText =
+		typeof coin.price_change_percentage_24h === "number"
+			? `${coin.price_change_percentage_24h.toFixed(2)}%`
+			: "-";
+
+	// Data source indicator: always show Chainlink badge
+	const DataSourceIndicator = () => (
+		<div className="inline-flex w-fit self-start items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+			<LinkIcon className="w-3 h-3" />
+			<span>Chainlink</span>
+		</div>
+	);
+
 	return (
 		<tr className="border-b border-gray-200 hover:bg-gray-50 transition-all duration-150 dark:hover:bg-gray-800 dark:border-b dark:border-gray-700">
-			<td className="px-6 py-4 text-center font-medium text-gray-700 dark:text-white">
-				{coin.market_cap_rank}
-			</td>
 			<td className="px-6 py-4">
-				<div className="flex items-center gap-3">
-					<img
-						src={coin.image}
-						alt={coin.name}
-						className="w-8 rounded-full"
-					/>
-					<div>
-						<p className="font-semibold text-gray-900 dark:text-white">
-							{coin.name}
-						</p>
-						<p className="text-gray-500 text-sm uppercase dark:text-gray-400">
-							{coin.symbol}
-						</p>
-						<DataSourceIndicator source={coin.dataSource || 'coingecko'} />
-					</div>
+				<div className="flex flex-col gap-1">
+					<p className="font-semibold text-gray-900 dark:text-white">{coin.name}</p>
+					<p className="text-gray-500 text-sm uppercase dark:text-gray-400">{coin.symbol}</p>
+					<DataSourceIndicator />
 				</div>
 			</td>
-			<td className="px-6 py-4 font-medium">
-				{formatCurrency(coin.current_price * currency[1], 6)}
-			</td>
-			<td className={`px-6 py-4 font-medium ${color}`}>
-				{coin.price_change_percentage_24h.toFixed(2)}%
-			</td>
-			<td className="px-6 py-4 font-medium text-gray-800 dark:text-white">
-				{formatCurrency((coin.market_cap * currency[1]).toFixed(2), 6)}
-			</td>
+			<td className="px-6 py-4 font-medium">{priceText}</td>
+			<td className={`px-6 py-4 font-medium ${color}`}>{pctText}</td>
 			<td className="px-6 py-4">
 				<div className="flex items-center gap-2">
 					<button
@@ -79,8 +49,8 @@ const CoinRow = ({ coin, isStarred, toggleWatchlist, toggleForm }) => {
 						onClick={() => {
 							if (isAuthenticated) {
 								toggleWatchlist(coin.id, coin.name);
-							} else {
-								toggleForm();
+							} else if (typeof onRequireLogin === "function") {
+								onRequireLogin();
 							}
 						}}
 					>
@@ -89,7 +59,11 @@ const CoinRow = ({ coin, isStarred, toggleWatchlist, toggleForm }) => {
 					<button
 						className="px-3 py-1 bg-blue-600 text-white text-sm font-semibold rounded-md hover:bg-blue-700 transition-all duration-200 cursor-pointer"
 						onClick={() => {
-							toggleForm(coin);
+							if (isAuthenticated) {
+								onAddClick && onAddClick(coin);
+							} else if (typeof onRequireLogin === "function") {
+								onRequireLogin(coin);
+							}
 						}}
 					>
 						Add

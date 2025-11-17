@@ -2,14 +2,13 @@ import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import useLogin from "../hooks/useLogin";
 
-const Login = ({ toggleForm, form }) => {
+const Login = ({ onLoginSuccess }) => {
 	const [username, setUsername] = useState("");
 	const [password, setPassword] = useState("");
 	const { handleSubmit, loading, error } = useLogin(
 		username,
 		password,
-		form,
-		toggleForm
+		onLoginSuccess
 	);
 	return (
 		<div className="w-screen flex justify-center">

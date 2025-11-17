@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import Table from "../components/Table";
-import Form from "../components/Form";
 import LoginWarning from "../components/LoginWarning";
 import CoinGeckoAttribution from "../components/CoinGeckoAttribution";
 import DataSourceSummary from "../components/DataSourceSummary";
+import CoinMarketplace from "../components/CoinMarketplace";
 import { useAuth } from "../context/AuthContext";
 import useTopCoins from "../hooks/useTopCoins";
 import Searchbar from "../components/Searchbar";
@@ -13,14 +13,16 @@ const Home = ({
 	watchlist,
 	toggleWatchlist,
 	addCoin,
-	form,
-	toggleForm,
-	coinData,
+	showLoginPrompt,
+	openLoginPrompt,
+	closeLoginPrompt,
 }) => {
 	const { isAuthenticated } = useAuth();
 	const { coins, loading, error } = useTopCoins();
 	const [search, setSearch] = useState("");
 	const [viewMode, setViewMode] = useState(() => localStorage.getItem('viewMode') || 'list'); // 'list' | 'grid'
+	const [marketplaceOpen, setMarketplaceOpen] = useState(false);
+	const [selectedCoin, setSelectedCoin] = useState(null);
 
 	useEffect(() => {
 		localStorage.setItem('viewMode', viewMode);
@@ -32,9 +34,29 @@ const Home = ({
 			coin.symbol.toLowerCase().includes(search.toLowerCase())
 	);
 
+	const handleOpenMarketplace = (coin) => {
+		if (isAuthenticated) {
+			// Show marketplace instead of form
+			setSelectedCoin(coin);
+			setMarketplaceOpen(true);
+		} else {
+			// Show login warning
+			openLoginPrompt();
+		}
+	};
+
+	const handleBuySuccess = () => {
+		// Optionally update portfolio or show success
+		setMarketplaceOpen(false);
+		setSelectedCoin(null);
+	};
+
+	if (showLoginPrompt && !isAuthenticated) {
+		return <LoginWarning onClose={closeLoginPrompt} />;
+	}
+
 	return (
 		<>
-			{!form ? (
 				<div className="p-4 pb-24 font-sans ">
 					<div className="w-full max-w-3xl mx-auto text-center flex flex-col items-center mt-7 sm:mt-12 mb-6 gap-4">
 						<h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 dark:text-white">
@@ -84,7 +106,8 @@ const Home = ({
 								toggleWatchlist={toggleWatchlist}
 								watchlist={watchlist}
 								message={""}
-								toggleForm={toggleForm}
+								onAddClick={handleOpenMarketplace}
+								onRequireLogin={openLoginPrompt}
 							/>
 						</div>
 					) : (
@@ -95,22 +118,26 @@ const Home = ({
 								coins={filteredCoins}
 								toggleWatchlist={toggleWatchlist}
 								watchlist={watchlist}
-								toggleForm={toggleForm}
+								onAddClick={handleOpenMarketplace}
+								onRequireLogin={openLoginPrompt}
 							/>
 						</div>
 					)}
+
+					{marketplaceOpen && selectedCoin && (
+						<CoinMarketplace
+							coin={selectedCoin}
+							onClose={() => {
+								setMarketplaceOpen(false);
+								setSelectedCoin(null);
+							}}
+							onBuySuccess={handleBuySuccess}
+							onPortfolioUpdate={(payload) =>
+								addCoin({ ...payload, skipMint: true })
+							}
+						/>
+					)}
 				</div>
-			) : isAuthenticated ? (
-				<Form
-					title={"Add to Portfolio"}
-					buttonText={"Add"}
-					coinData={coinData}
-					toggleForm={toggleForm}
-					action={addCoin}
-				/>
-			) : (
-				<LoginWarning toggleForm={toggleForm} />
-			)}
 		</>
 	);
 };

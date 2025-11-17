@@ -25,6 +25,18 @@ const Menu = ({ handleLogout }) => {
 			>
 				Home
 			</NavLink>
+			<NavLink
+				to="/marketplace"
+				className={({ isActive }) =>
+					`p-2 w-full font-medium ${
+						isActive
+							? "bg-blue-200 text-blue-700 dark:bg-blue-800/50 dark:text-white"
+							: "hover:bg-blue-50 text-gray-700 dark:hover:bg-blue-600/10 dark:text-white"
+					}`
+				}
+			>
+				Marketplace
+			</NavLink>
 			{isAuthenticated ? (
 				<>
 					<NavLink
@@ -40,6 +52,18 @@ const Menu = ({ handleLogout }) => {
 						Dashboard
 					</NavLink>
 					<NavLink
+						to="profile"
+						className={({ isActive }) =>
+							`p-2 w-full font-medium ${
+								isActive
+									? "bg-blue-200 text-blue-700 dark:bg-blue-800/50 dark:text-white"
+									: "hover:bg-blue-50 text-gray-700 dark:hover:bg-blue-600/10 dark:text-white"
+							}`
+						}
+					>
+						Profile
+					</NavLink>
+					<NavLink
 						to="watchlist"
 						className={({ isActive }) =>
 							`p-2 w-full font-medium ${
@@ -50,6 +74,18 @@ const Menu = ({ handleLogout }) => {
 						}
 					>
 						Watchlist
+					</NavLink>
+					<NavLink
+						to="transactions"
+						className={({ isActive }) =>
+							`p-2 w-full font-medium ${
+								isActive
+									? "bg-blue-200 text-blue-700 dark:bg-blue-800/50 dark:text-white"
+									: "hover:bg-blue-50 text-gray-700 dark:hover:bg-blue-600/10 dark:text-white"
+							}`
+						}
+					>
+						📜 Transactions
 					</NavLink>
 					<button
 						onClick={handleLogout}

@@ -1,0 +1,115 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "E:\\A_NAM_4_KI_1\\BlockChain\\CryptoTrack\\blockchain\\contracts\\ERC20Mock.sol": {
+      "lastModificationDate": 1763321326053,
+      "contentHash": "73b11753a8f77653a765bd4767ae4eda",
+      "sourceName": "contracts/ERC20Mock.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "evmVersion": "paris",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.24"
+      ],
+      "artifacts": [
+        "ERC20Mock"
+      ]
+    },
+    "E:\\A_NAM_4_KI_1\\BlockChain\\CryptoTrack\\blockchain\\contracts\\OracleMock.sol": {
+      "lastModificationDate": 1763321334353,
+      "contentHash": "6c6cf45d563a93e71059e75cb1a8f8e2",
+      "sourceName": "contracts/OracleMock.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "evmVersion": "paris",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.24"
+      ],
+      "artifacts": [
+        "OracleMock"
+      ]
+    },
+    "E:\\A_NAM_4_KI_1\\BlockChain\\CryptoTrack\\blockchain\\contracts\\P2PMarketplace.sol": {
+      "lastModificationDate": 1763321279155,
+      "contentHash": "e5dca889d4583254c18e35975c6a45b7",
+      "sourceName": "contracts/P2PMarketplace.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "evmVersion": "paris",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.24"
+      ],
+      "artifacts": [
+        "IAggregator",
+        "IERC20",
+        "P2PMarketplace"
+      ]
+    }
+  }
+}

@@ -8,7 +8,8 @@ const PortfolioCoinRow = ({
 	isStarred,
 	coinData,
 	toggleWatchlist,
-	toggleForm,
+	onAddClick,
+	onSellClick,
 }) => {
 	const { currency, formatCurrency } = useCurrency();
 
@@ -24,24 +25,14 @@ const PortfolioCoinRow = ({
 
 	return (
 		<tr className="border-b border-gray-200 hover:bg-gray-50 transition-all duration-150 dark:hover:bg-gray-900 dark:border-gray-700">
-			<td className="px-6 py-4 text-center font-medium text-gray-700 dark:text-white">
-				{coin.market_cap_rank}
-			</td>
 			<td className="px-6 py-4">
-				<div className="flex items-center gap-3">
-					<img
-						src={coin.image}
-						alt={coin.name}
-						className="w-8 rounded-full"
-					/>
-					<div>
-						<p className="font-semibold text-gray-900 dark:text-white">
-							{coin.name}
-						</p>
-						<p className="text-gray-500 text-sm uppercase dark:text-gray-400">
-							{coin.symbol}
-						</p>
-					</div>
+				<div>
+					<p className="font-semibold text-gray-900 dark:text-white">
+						{coin.name}
+					</p>
+					<p className="text-gray-500 text-sm uppercase dark:text-gray-400">
+						{coin.symbol}
+					</p>
 				</div>
 			</td>
 			<td className="px-6 py-4 font-medium">
@@ -85,18 +76,18 @@ const PortfolioCoinRow = ({
 					<button
 						className="px-3 py-1 bg-green-600 text-white text-sm font-semibold rounded-md hover:bg-green-700 transition-all duration-200 cursor-pointer"
 						onClick={() => {
-							toggleForm(coin, "add");
+							onAddClick && onAddClick(coin);
 						}}
 					>
-						Add
+						Buy
 					</button>
 					<button
-						className="px-3 py-1 bg-red-600 text-white text-sm font-semibold rounded-md hover:bg-red-700 transition-all duration-200 cursor-pointer"
+						className="px-3 py-1 bg-blue-600 text-white text-sm font-semibold rounded-md hover:bg-blue-700 transition-all duration-200 cursor-pointer"
 						onClick={() => {
-							toggleForm(coin, "remove");
+							onSellClick && onSellClick(coin);
 						}}
 					>
-						Remove
+						Sell
 					</button>
 				</div>
 			</td>

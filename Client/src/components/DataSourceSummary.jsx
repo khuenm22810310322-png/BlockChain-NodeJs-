@@ -1,4 +1,4 @@
-import { Link as LinkIcon, TrendingUp as TrendingUpIcon } from "@mui/icons-material";
+import { Link as LinkIcon } from "@mui/icons-material";
 import { getDataSourceStats } from "../services/dataSourceService";
 
 const DataSourceSummary = ({ coins }) => {
@@ -9,11 +9,10 @@ const DataSourceSummary = ({ coins }) => {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm border border-gray-200 dark:border-gray-700">
       <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-        📊 Data Source Distribution
+        Data Source Distribution
       </h3>
       
       <div className="space-y-3">
-        {/* Chainlink Stats */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
@@ -34,48 +33,18 @@ const DataSourceSummary = ({ coins }) => {
           </div>
         </div>
         
-        {/* CoinGecko Stats */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-            <div className="flex items-center gap-1">
-              <TrendingUpIcon className="w-4 h-4 text-orange-600" />
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                CoinGecko (Centralized)
-              </span>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-sm font-semibold text-gray-900 dark:text-white">
-              {stats.coingecko.count} coins
-            </div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">
-              {stats.coingecko.percentage}%
-            </div>
-          </div>
-        </div>
-        
-        {/* Progress Bar */}
         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
           <div className="flex h-2 rounded-full overflow-hidden">
             <div 
               className="bg-blue-500 h-2 transition-all duration-300"
               style={{ width: `${stats.chainlink.percentage}%` }}
             ></div>
-            <div 
-              className="bg-orange-500 h-2 transition-all duration-300"
-              style={{ width: `${stats.coingecko.percentage}%` }}
-            ></div>
           </div>
         </div>
         
-        {/* Info Text */}
         <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
           <p>
-            🔗 <strong>Chainlink:</strong> Decentralized price feeds from blockchain oracles
-          </p>
-          <p>
-            📈 <strong>CoinGecko:</strong> Centralized API for comprehensive crypto data
+            <strong>Chainlink:</strong> Decentralized price feeds from blockchain oracles
           </p>
         </div>
       </div>

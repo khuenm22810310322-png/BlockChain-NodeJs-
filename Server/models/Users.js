@@ -20,6 +20,12 @@ const UsersSchema = new mongoose.Schema({
 		default: [],
 	},
 
+	walletAddress: {
+		type: String,
+		default: null,
+		trim: true,
+	},
+
 	portfolio: {
 		type: Map,
 		of: {

@@ -13,7 +13,8 @@ const PortfolioTable = ({
 	watchlist,
 	portfolio,
 	message,
-	toggleForm,
+	onAddClick,
+	onSellClick,
 	totalInvestment,
 	currentValue,
 }) => {
@@ -57,7 +58,6 @@ const PortfolioTable = ({
 					<thead className="border-b-2 border-gray-200 dark:bg-gray-800 dark:border-gray-700">
 						<tr>
 							{[
-								"Rank",
 								"Name",
 								"Price",
 								"Total Investment",
@@ -79,7 +79,7 @@ const PortfolioTable = ({
 						{message && (
 							<tr>
 								<td
-									colSpan="8"
+									colSpan="7"
 									className="text-center p-8 text-gray-500 dark:text-white"
 								>
 									{message}
@@ -89,7 +89,7 @@ const PortfolioTable = ({
 						{loading && (
 							<tr>
 								<td
-									colSpan="8"
+									colSpan="7"
 									className="text-center p-8 text-gray-500 dark:text-white"
 								>
 									Loading data...
@@ -99,7 +99,7 @@ const PortfolioTable = ({
 						{error && (
 							<tr>
 								<td
-									colSpan="8"
+									colSpan="7"
 									className="text-center p-8 text-red-500"
 								>
 									An Error Occured
@@ -115,7 +115,8 @@ const PortfolioTable = ({
 									coinData={portfolio[coin.id]}
 									isStarred={watchlist.includes(coin.id)}
 									toggleWatchlist={toggleWatchlist}
-									toggleForm={toggleForm}
+									onAddClick={onAddClick}
+									onSellClick={onSellClick}
 								/>
 							))}
 					</tbody>

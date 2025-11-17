@@ -1,19 +1,25 @@
+import { useState } from "react";
 import Table from "../components/Table";
-import Form from "../components/Form";
 import CoinGeckoAttribution from "../components/CoinGeckoAttribution";
 import useWatchlist from "../hooks/useWatchlist";
+import CoinMarketplace from "../components/CoinMarketplace";
 
-const Watchlist = ({
-	watchlist,
-	toggleWatchlist,
-	addCoin,
-	form,
-	toggleForm,
-	coinData,
-}) => {
+const Watchlist = ({ watchlist, toggleWatchlist, addCoin }) => {
 	const { coins, loading, error } = useWatchlist(watchlist);
+	const [marketplaceOpen, setMarketplaceOpen] = useState(false);
+	const [selectedCoin, setSelectedCoin] = useState(null);
 
-	return !form ? (
+	const handleAddClick = (coin) => {
+		setSelectedCoin(coin);
+		setMarketplaceOpen(true);
+	};
+
+	const handleBuySuccess = () => {
+		setMarketplaceOpen(false);
+		setSelectedCoin(null);
+	};
+
+	return (
 		<>
 			<div className="mt-3 overflow-x-auto [scrollbar-width:none] mx-6">
 				<Table
@@ -27,21 +33,27 @@ const Watchlist = ({
 							? "No Coin Has Been Added To Watchlist"
 							: ""
 					}
-					toggleForm={toggleForm}
+					onAddClick={handleAddClick}
 				/>
 			</div>
 			<div className="text-center mt-1">
 				<CoinGeckoAttribution />
 			</div>
+
+			{marketplaceOpen && selectedCoin && (
+				<CoinMarketplace
+					coin={selectedCoin}
+					onClose={() => {
+						setMarketplaceOpen(false);
+						setSelectedCoin(null);
+					}}
+					onBuySuccess={handleBuySuccess}
+					onPortfolioUpdate={(payload) =>
+						addCoin({ ...payload, skipMint: true })
+					}
+				/>
+			)}
 		</>
-	) : (
-		<Form
-			title={"Add to Portfolio"}
-			buttonText={"Add"}
-			coinData={coinData}
-			toggleForm={toggleForm}
-			action={addCoin}
-		/>
 	);
 };
 

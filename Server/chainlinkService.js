@@ -7,78 +7,86 @@ const { getFeedAddressForPair } = require('./utils/chainlinkFeeds');
 const { resolveFeedBySymbols } = require('./utils/feedRegistry');
 
 // Simple in-memory cache
-const cache = new Map();
-const CACHE_TTL = 15 * 60 * 1000; // 15 minutes để tránh rate limit CoinGecko
+const { getFeedForCoin } = require("./services/feedDiscovery");
+const { getCacheManager } = require("./utils/cacheManager");
+
+// Get cache manager instance
+const cacheManager = getCacheManager();
+
 // De-duplicate concurrent requests for the same cache key
 const inFlight = new Map();
 // Max allowed age for Chainlink oracle data before we treat it as stale (seconds)
-const MAX_CHAINLINK_AGE_SEC = parseInt(process.env.CHAINLINK_MAX_AGE_SECONDS || '3600', 10); // default 1h
-
-function getCached(key) {
-  const cached = cache.get(key);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return cached.data;
-  }
-  return null;
-}
-
-function setCache(key, data) {
-  cache.set(key, { data, timestamp: Date.now() });
-}
+const MAX_CHAINLINK_AGE_SEC = parseInt(process.env.CHAINLINK_MAX_AGE_SECONDS || "3600", 10);
 
 function isFreshUnixSeconds(updatedAtSec) {
-  if (!updatedAtSec || isNaN(updatedAtSec)) return false;
-  const ageSec = Math.floor(Date.now() / 1000) - Number(updatedAtSec);
-  return ageSec >= 0 && ageSec <= MAX_CHAINLINK_AGE_SEC;
+	if (!updatedAtSec || isNaN(updatedAtSec)) return false;
+	const ageSec = Math.floor(Date.now() / 1000) - Number(updatedAtSec);
+	return ageSec >= 0 && ageSec <= MAX_CHAINLINK_AGE_SEC;
 }
 
 async function axiosGetWithRetry(url, options, retries = 1, backoffMs = 500) {
-  try {
-    return await axios.get(url, options);
-  } catch (err) {
-    const shouldRetry = retries > 0 && (
-      err?.response?.status === 429 ||
-      (err?.response && err.response.status >= 500) ||
-      err?.code === 'ECONNABORTED' ||
-      (err?.message || '').toLowerCase().includes('timeout')
-    );
-    if (shouldRetry) {
-      await new Promise(r => setTimeout(r, backoffMs));
-      return axiosGetWithRetry(url, options, retries - 1, backoffMs * 2);
-    }
-    throw err;
-  }
+	try {
+		return await axios.get(url, options);
+	} catch (err) {
+		const shouldRetry =
+			retries > 0 &&
+			(err?.response?.status === 429 ||
+				(err?.response && err.response.status >= 500) ||
+				err?.code === "ECONNABORTED" ||
+				(err?.message || "").toLowerCase().includes("timeout"));
+		if (shouldRetry) {
+			await new Promise((r) => setTimeout(r, backoffMs));
+			return axiosGetWithRetry(url, options, retries - 1, backoffMs * 2);
+		}
+		throw err;
+	}
 }
 
 // Minimal AggregatorV3Interface ABI (latestRoundData + decimals)
 const AGGREGATOR_V3_ABI = [
-  {
-    inputs: [],
-    name: 'decimals',
-    outputs: [{ internalType: 'uint8', name: '', type: 'uint8' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [],
-    name: 'latestRoundData',
-    outputs: [
-      { internalType: 'uint80', name: 'roundId', type: 'uint80' },
-      { internalType: 'int256', name: 'answer', type: 'int256' },
-      { internalType: 'uint256', name: 'startedAt', type: 'uint256' },
-      { internalType: 'uint256', name: 'updatedAt', type: 'uint256' },
-      { internalType: 'uint80', name: 'answeredInRound', type: 'uint80' },
-    ],
-    stateMutability: 'view',
-    type: 'function',
-  },
+	{
+		inputs: [],
+		name: "decimals",
+		outputs: [{ internalType: "uint8", name: "", type: "uint8" }],
+		stateMutability: "view",
+		type: "function",
+	},
+	{
+		inputs: [],
+		name: "latestRoundData",
+		outputs: [
+			{ internalType: "uint80", name: "roundId", type: "uint80" },
+			{ internalType: "int256", name: "answer", type: "int256" },
+			{ internalType: "uint256", name: "startedAt", type: "uint256" },
+			{ internalType: "uint256", name: "updatedAt", type: "uint256" },
+			{ internalType: "uint80", name: "answeredInRound", type: "uint80" },
+		],
+		stateMutability: "view",
+		type: "function",
+	},
 ];
 
 // Provider from RPC URL (e.g., Ethereum mainnet or your target network)
 const RPC_URL = process.env.ALCHEMY_RPC_URL || process.env.CHAINLINK_RPC_URL;
 let provider = undefined;
 if (RPC_URL) {
-  provider = new ethers.JsonRpcProvider(RPC_URL);
+	provider = new ethers.JsonRpcProvider(RPC_URL);
+}
+
+async function resolveFeedAddress(pairId) {
+	const [base, quote] = pairId.split("-");
+	// Try Feed Registry lookup first (requires CHAINLINK_TOKEN_ADDRS and FEED_REGISTRY_ADDRESS in .env)
+	try {
+		const resolved = await resolveFeedBySymbols(base, quote);
+		if (resolved) return resolved;
+	} catch (_) {}
+	// Fallback to .env configured feed addresses
+	const envAddr = getFeedAddressForPair(pairId);
+	if (envAddr) return envAddr;
+	// Try dynamic discovery via feed registry + DB cache using coinId
+	const coinId = base; // base assumed coinGecko id-lowercase
+	const discovered = await getFeedForCoin(coinId, base.toUpperCase());
+	return discovered;
 }
 
 async function readFeedPrice(pairId) {
@@ -138,13 +146,17 @@ async function getChainlinkPrices(pairIds) {
 
 // === HÀM MỚI: KẾT HỢP HYBRID ===
 async function getMergedPriceData(coinGeckoIds) {
+  console.log('🔍 getMergedPriceData called with coins:', coinGeckoIds);
+  
   // Check cache first
   const cacheKey = `merged_${coinGeckoIds.sort().join(',')}`;
-  const cached = getCached(cacheKey);
+  const cached = await cacheManager.get(cacheKey);
   if (cached) {
-    console.log('Returning cached data for', coinGeckoIds.length, 'coins');
+    console.log('✅ Returning cached data for', coinGeckoIds.length, 'coins:', cached.map(c => c.id));
     return cached;
   }
+  
+  console.log('⏳ Cache miss, fetching fresh data...');
 
   // De-duplicate concurrent requests for the same key
   if (inFlight.has(cacheKey)) {
@@ -204,16 +216,16 @@ async function getMergedPriceData(coinGeckoIds) {
       });
 
       // Cache the result
-      setCache(cacheKey, mergedData);
+      await cacheManager.set(cacheKey, mergedData);
       return mergedData;
     } catch (error) {
       console.error('Error in getMergedPriceData:', error.message);
       
       // If rate limited or any error, return cached data even if expired
-      const expiredCache = cache.get(cacheKey);
+      const expiredCache = await cacheManager.get(cacheKey);
       if (expiredCache) {
         console.log('Error occurred, returning expired cache for', coinGeckoIds.length, 'coins');
-        return expiredCache.data;
+        return expiredCache;
       }
       
       // If no cache at all, throw error
@@ -230,8 +242,37 @@ async function getMergedPriceData(coinGeckoIds) {
   return promise;
 }
 
+// Warm up cache by pre-loading top N feeds
+async function warmTopFeeds(topN = 20) {
+  try {
+    const { supported } = require('./utils/idMapper');
+    const topPairs = supported.slice(0, topN).map(c => c.pairId).filter(Boolean);
+    console.log(`Warming up cache for top ${topPairs.length} Chainlink feeds...`);
+    const results = await getChainlinkPrices(topPairs);
+    const successful = results.filter(r => r.price !== null).length;
+    console.log(`Cache warmed: ${successful}/${topPairs.length} feeds loaded`);
+    return results;
+  } catch (error) {
+    console.error('Error warming feeds:', error.message);
+    throw error;
+  }
+}
+
+// Wrapper for cache refresh - fetches single Chainlink price
+async function getOrFetchChainlink(pairId) {
+  try {
+    const result = await getChainlinkPrice(pairId);
+    return result;
+  } catch (error) {
+    console.error(`Error fetching Chainlink price for ${pairId}:`, error.message);
+    return { coin: pairId, price: null, error: error.message };
+  }
+}
+
 module.exports = { 
   getChainlinkPrice, 
   getChainlinkPrices, 
-  getMergedPriceData // <-- Xuất hàm mới
+  getMergedPriceData,
+  warmTopFeeds,
+  getOrFetchChainlink
 };

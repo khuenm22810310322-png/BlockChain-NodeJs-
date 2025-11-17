@@ -1,11 +1,11 @@
 import TrendingDownIcon from "@mui/icons-material/TrendingDown";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import { useState } from "react";
-import Form from "../components/Form";
 import PortfolioTable from "../components/PortfolioTable";
 import TopCoins from "../components/TopCoins";
 import CoinGeckoAttribution from "../components/CoinGeckoAttribution";
 import DataSourceSummary from "../components/DataSourceSummary";
+import SellModal from "../components/SellModal";
 import { useCurrency } from "../context/CurrencyContext";
 import useCoins from "../hooks/useCoins";
 import useChart from "../hooks/useChart";
@@ -22,15 +22,29 @@ const Dashboard = ({
 	removeCoin,
 	coinData,
 }) => {
+	console.log('📊 Dashboard rendered with portfolio:', portfolio);
+	
 	const portfolioCoins = Object.keys(portfolio);
-	const [action, setAction] = useState("");
+	console.log('📊 Portfolio coins:', portfolioCoins);
+	
+	const [sellModalOpen, setSellModalOpen] = useState(false);
+	const [selectedCoin, setSelectedCoin] = useState(null);
 	const { currency, formatCurrency } = useCurrency();
 	const { coins, loading, error } = useCoins(portfolio);
+	
+	console.log('📊 useCoins result - coins:', coins, 'loading:', loading, 'error:', error);
+	
 	const chart = useChart(portfolio, coins);
 
-	const handleToggleForm = (coin, actionType) => {
-		setAction(actionType);
-		toggleForm(coin);
+	const handleSellClick = (coin) => {
+		setSelectedCoin(coin);
+		setSellModalOpen(true);
+	};
+
+	const handleSellSuccess = () => {
+		// Optionally refresh portfolio or show success message
+		setSellModalOpen(false);
+		setSelectedCoin(null);
 	};
 
 	const totalInvestment = Object.keys(portfolio).reduce((acc, coinId) => {
@@ -46,9 +60,11 @@ const Dashboard = ({
 	}, 0);
 
 	const profit =
-		((currentValue - totalInvestment) / totalInvestment) * 100 || 0;
+		totalInvestment > 0
+			? ((currentValue - totalInvestment) / totalInvestment) * 100
+			: 0;
 
-	return !form ? (
+	return (
 		<div className="bg-slate-100 min-h-screen w-full p-4 sm:p-6 lg:p-8 dark:bg-gray-900 dark:text-white">
 			<div className="max-w-9xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
 				<div className="bg-white shadow-lg rounded-xl p-6 flex flex-col items-start gap-1 sm:gap-3 dark:bg-gray-800">
@@ -141,7 +157,7 @@ const Dashboard = ({
 							? ""
 							: "No Coins Added To Portfolio"
 					}
-					toggleForm={handleToggleForm}
+					onSellClick={handleSellClick}
 					totalInvestment={totalInvestment}
 					currentValue={currentValue}
 				/>
@@ -149,18 +165,16 @@ const Dashboard = ({
 					<CoinGeckoAttribution />
 				</div>
 			</div>
+			
+			{sellModalOpen && selectedCoin && (
+				<SellModal
+					coin={selectedCoin}
+					portfolio={portfolio}
+					onClose={() => setSellModalOpen(false)}
+					onSuccess={handleSellSuccess}
+				/>
+			)}
 		</div>
-	) : (
-		<Form
-			title={
-				action == "add" ? "Add to Portfolio" : "Remove from Portfolio"
-			}
-			buttonText={action == "add" ? "Add" : "Remove"}
-			coinData={coinData}
-			toggleForm={toggleForm}
-			action={action == "add" ? addCoin : removeCoin}
-			portfolio={portfolio}
-		/>
 	);
 };
 

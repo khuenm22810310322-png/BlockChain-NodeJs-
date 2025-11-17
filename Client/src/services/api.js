@@ -58,19 +58,32 @@ export const watchlistAPI = {
 	},
 };
 
-// === THÊM ĐỐI TƯỢNG MỚI NÀY ===
+// Market + chainlink compare APIs
 export const marketAPI = {
 	getTop100: async () => {
-		const response = await api.get("/api/market/top100"); // Gọi backend
+		const response = await api.get("/api/market/top100");
 		const d = response.data;
 		return Array.isArray(d) ? d : (Array.isArray(d?.data) ? d.data : []);
 	},
 	getPrices: async (coinIds) => {
-		// coinIds là mảng ID CoinGecko: ["bitcoin", "ethereum"]
-		const response = await api.post("/api/prices", { coinIds }); // Gọi backend
+		const response = await api.post("/api/prices", { coinIds });
 		const d = response.data;
 		return Array.isArray(d) ? d : (Array.isArray(d?.data) ? d.data : []);
 	},
+	comparePrices: async (coinIds) => {
+		const query = encodeURIComponent(coinIds.join(","));
+		const response = await api.get(`/api/compare/prices?ids=${query}`);
+		return Array.isArray(response.data?.data) ? response.data.data : [];
+	},
+	compareStats: async (coinIds) => {
+		const query = coinIds?.length ? `?ids=${encodeURIComponent(coinIds.join(","))}` : "";
+		const response = await api.get(`/api/compare/stats${query}`);
+		return response.data;
+	},
+	getMarketplaceConfig: async () => (await api.get("/api/marketplace/config")).data,
+	getListing: async (id) => (await api.get(`/api/marketplace/listings/${id}`)).data,
+	createListing: async (payload) => (await api.post("/api/marketplace/listings", payload)).data,
+	buyListing: async (payload) => (await api.post("/api/marketplace/buy", payload)).data,
 };
 
 export default api;
