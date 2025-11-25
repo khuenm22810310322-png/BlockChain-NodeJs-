@@ -40,6 +40,9 @@ const hpp = require("hpp");
 const PORT = process.env.PORT || 3000;
 const app = express();
 
+// Trust proxy (required for Ngrok/Vercel/Heroku) to fix ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+app.set('trust proxy', 1);
+
 // We'll attach socket.io later after creating the HTTP server
 let io;
 const cacheManager = getCacheManager();
@@ -81,6 +84,7 @@ const SNAPSHOT_INTERVAL_MS = parseInt(process.env.PRICE_SNAPSHOT_INTERVAL_MS || 
 const allowedOrigins = [
 	process.env.CLIENT || "https://cryptotrack-ultimez.vercel.app",
 	"http://localhost:5173",
+	"https://block-chain-node-js.vercel.app",
 ];
 app.use(
 	cors({
@@ -91,6 +95,7 @@ app.use(
 			if (allowedOrigins.includes(origin) || origin.endsWith(".ngrok-free.app")) {
 				return callback(null, true);
 			}
+			console.log("Blocked CORS origin:", origin); // Debug log
 			return callback(new Error("Not allowed by CORS"));
 		},
 		credentials: true,

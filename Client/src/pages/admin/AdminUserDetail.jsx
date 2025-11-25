@@ -125,8 +125,8 @@ const AdminUserDetail = () => {
                      {Object.entries(user.portfolio).map(([coinId, data]) => (
                        <tr key={coinId} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                          <td className="px-3 py-2 font-medium">{coinId.toUpperCase()}</td>
-                         <td className="px-3 py-2">{Number(data.coins).toLocaleString()}</td>
-                         <td className="px-3 py-2">${Number(data.totalInvestment).toLocaleString()}</td>
+                         <td className="px-3 py-2">{(Number(data.coins) || 0).toLocaleString()}</td>
+                         <td className="px-3 py-2">${(Number(data.totalInvestment) || 0).toLocaleString()}</td>
                        </tr>
                      ))}
                    </tbody>

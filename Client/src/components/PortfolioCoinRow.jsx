@@ -18,10 +18,13 @@ const PortfolioCoinRow = ({
 		return <></>;
 	}
 
-	const profit =
-		((coin.current_price * coinData.coins - coinData.totalInvestment) /
-			coinData.totalInvestment) *
-		100;
+	const coinsHeld = coinData.coins || 0;
+	const totalInv = coinData.totalInvestment || 0;
+
+	const profit = totalInv > 0
+		? ((coin.current_price * coinsHeld - totalInv) / totalInv) * 100
+		: 0;
+	
 	const color = getColor(profit);
 
 	return (
@@ -41,16 +44,16 @@ const PortfolioCoinRow = ({
 			</td>
 			<td className="px-6 py-4 font-medium text-gray-800 dark:text-white">
 				{formatCurrency(
-					(coinData.totalInvestment * currency[1]).toFixed(2),
+					(totalInv * currency[1]).toFixed(2),
 					6
 				)}
 			</td>
 			<td className="px-6 py-4 font-medium text-gray-800 dark:text-white">
-				{coinData.coins.toLocaleString()}
+				{coinsHeld.toLocaleString()}
 			</td>
 			<td className={`px-6 py-4 font-medium`}>
 				{formatCurrency(
-					(coin.current_price * coinData.coins * currency[1]).toFixed(
+					(coin.current_price * coinsHeld * currency[1]).toFixed(
 						2
 					),
 					6
