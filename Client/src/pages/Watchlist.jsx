@@ -1,6 +1,5 @@
 import { useState } from "react";
 import Table from "../components/Table";
-import CoinGeckoAttribution from "../components/CoinGeckoAttribution";
 import useWatchlist from "../hooks/useWatchlist";
 import CoinMarketplace from "../components/CoinMarketplace";
 
@@ -35,9 +34,6 @@ const Watchlist = ({ watchlist, toggleWatchlist, addCoin }) => {
 					}
 					onAddClick={handleAddClick}
 				/>
-			</div>
-			<div className="text-center mt-1">
-				<CoinGeckoAttribution />
 			</div>
 
 			{marketplaceOpen && selectedCoin && (

@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 import { useAuth } from "../context/AuthContext";
 
 const Menu = ({ handleLogout }) => {
-	const { isAuthenticated } = useAuth();
+	const { isAuthenticated, user } = useAuth();
 
 	return (
 		<motion.ul
@@ -13,19 +13,21 @@ const Menu = ({ handleLogout }) => {
 			transition={{ duration: 0.3, ease: "easeInOut" }}
 			className="fixed bg-white w-screen shadow-md border-t sm:hidden flex-col text-center flex z-20 dark:bg-gray-800"
 		>
-			<NavLink
-				to="/"
-				className={({ isActive }) =>
-					`p-2 w-full font-medium ${
-						isActive
-							? "bg-blue-200 text-blue-700 dark:bg-blue-800/50 dark:text-white"
-							: "hover:bg-blue-50 text-gray-700 dark:hover:bg-blue-600/10 dark:text-white"
-					}`
-				}
-			>
-				Home
-			</NavLink>
-			<NavLink
+			{user?.role !== 'admin' && (
+				<NavLink
+					to="/"
+					className={({ isActive }) =>
+						`p-2 w-full font-medium ${
+							isActive
+								? "bg-blue-200 text-blue-700 dark:bg-blue-800/50 dark:text-white"
+								: "hover:bg-blue-50 text-gray-700 dark:hover:bg-blue-600/10 dark:text-white"
+						}`
+					}
+				>
+					Home
+				</NavLink>
+			)}
+			{/* <NavLink
 				to="/marketplace"
 				className={({ isActive }) =>
 					`p-2 w-full font-medium ${
@@ -36,21 +38,77 @@ const Menu = ({ handleLogout }) => {
 				}
 			>
 				Marketplace
-			</NavLink>
+			</NavLink> */}
 			{isAuthenticated ? (
 				<>
-					<NavLink
-						to="dashboard"
-						className={({ isActive }) =>
-							`p-2 w-full font-medium ${
-								isActive
-									? "bg-blue-200 text-blue-700 dark:bg-blue-800/50 dark:text-white"
-									: "hover:bg-blue-50 text-gray-700 dark:hover:bg-blue-600/10 dark:text-white"
-							}`
-						}
-					>
-						Dashboard
-					</NavLink>
+					{user?.role === 'admin' ? (
+						<>
+							<NavLink
+								to="/admin/analytics"
+								className={({ isActive }) =>
+									`p-2 w-full font-medium ${
+										isActive
+											? "bg-blue-200 text-blue-700 dark:bg-blue-800/50 dark:text-white"
+											: "hover:bg-blue-50 text-gray-700 dark:hover:bg-blue-600/10 dark:text-white"
+									}`
+								}
+							>
+								Analytics
+							</NavLink>
+							<NavLink
+								to="/admin/audit-logs"
+								className={({ isActive }) =>
+									`p-2 w-full font-medium ${
+										isActive
+											? "bg-blue-200 text-blue-700 dark:bg-blue-800/50 dark:text-white"
+											: "hover:bg-blue-50 text-gray-700 dark:hover:bg-blue-600/10 dark:text-white"
+									}`
+								}
+							>
+								Audit Logs
+							</NavLink>
+							<NavLink
+								to="/admin"
+								end
+								className={({ isActive }) =>
+									`p-2 w-full font-medium ${
+										isActive
+											? "bg-blue-200 text-blue-700 dark:bg-blue-800/50 dark:text-white"
+											: "hover:bg-blue-50 text-gray-700 dark:hover:bg-blue-600/10 dark:text-white"
+									}`
+								}
+							>
+								Users
+							</NavLink>
+						</>
+					) : (
+						<>
+							<NavLink
+								to="dashboard"
+								className={({ isActive }) =>
+									`p-2 w-full font-medium ${
+										isActive
+											? "bg-blue-200 text-blue-700 dark:bg-blue-800/50 dark:text-white"
+											: "hover:bg-blue-50 text-gray-700 dark:hover:bg-blue-600/10 dark:text-white"
+									}`
+								}
+							>
+								Dashboard
+							</NavLink>
+							<NavLink
+								to="watchlist"
+								className={({ isActive }) =>
+									`p-2 w-full font-medium ${
+										isActive
+											? "bg-blue-200 text-blue-700 dark:bg-blue-800/50 dark:text-white"
+											: "hover:bg-blue-50 text-gray-700 dark:hover:bg-blue-600/10 dark:text-white"
+									}`
+								}
+							>
+								Watchlist
+							</NavLink>
+						</>
+					)}
 					<NavLink
 						to="profile"
 						className={({ isActive }) =>
@@ -63,30 +121,7 @@ const Menu = ({ handleLogout }) => {
 					>
 						Profile
 					</NavLink>
-					<NavLink
-						to="watchlist"
-						className={({ isActive }) =>
-							`p-2 w-full font-medium ${
-								isActive
-									? "bg-blue-200 text-blue-700 dark:bg-blue-800/50 dark:text-white"
-									: "hover:bg-blue-50 text-gray-700 dark:hover:bg-blue-600/10 dark:text-white"
-							}`
-						}
-					>
-						Watchlist
-					</NavLink>
-					<NavLink
-						to="transactions"
-						className={({ isActive }) =>
-							`p-2 w-full font-medium ${
-								isActive
-									? "bg-blue-200 text-blue-700 dark:bg-blue-800/50 dark:text-white"
-									: "hover:bg-blue-50 text-gray-700 dark:hover:bg-blue-600/10 dark:text-white"
-							}`
-						}
-					>
-						📜 Transactions
-					</NavLink>
+					{/* Marketplace hidden; remove link; Transactions hidden */}
 					<button
 						onClick={handleLogout}
 						className="p-2 w-full text-white bg-blue-600 hover:bg-blue-700 font-medium"

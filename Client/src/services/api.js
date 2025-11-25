@@ -18,13 +18,13 @@ api.interceptors.request.use((config) => {
 });
 
 export const authAPI = {
-	login: async (username, password) => {
-		const response = await api.post("/login", { username, password });
+	login: async (username, password, captchaToken) => {
+		const response = await api.post("/login", { username, password, captchaToken });
 		return response.data;
 	},
 
-	register: async (username, password) => {
-		const response = await api.post("/register", { username, password });
+	register: async (username, password, captchaToken) => {
+		const response = await api.post("/register", { username, password, captchaToken });
 		return response.data;
 	},
 };
@@ -81,9 +81,24 @@ export const marketAPI = {
 		return response.data;
 	},
 	getMarketplaceConfig: async () => (await api.get("/api/marketplace/config")).data,
+	getTokens: async () => (await api.get("/api/marketplace/tokens")).data,
 	getListing: async (id) => (await api.get(`/api/marketplace/listings/${id}`)).data,
 	createListing: async (payload) => (await api.post("/api/marketplace/listings", payload)).data,
 	buyListing: async (payload) => (await api.post("/api/marketplace/buy", payload)).data,
+};
+
+export const adminAPI = {
+	getUsers: async () => (await api.get("/api/admin/users")).data,
+	getUserDetails: async (id) => (await api.get(`/api/admin/users/${id}`)).data,
+	deleteUser: async (id) => (await api.delete(`/api/admin/users/${id}`)).data,
+	toggleBanUser: async (id, isBanned) => (await api.put(`/api/admin/users/${id}/ban`, { isBanned })).data,
+	refundUser: async (id, payload) => (await api.post(`/api/admin/users/${id}/refund`, payload)).data,
+};
+
+export const alertsAPI = {
+	getAll: async () => (await api.get("/api/alerts")).data,
+	create: async (payload) => (await api.post("/api/alerts", payload)).data,
+	delete: async (id) => (await api.delete(`/api/alerts/${id}`)).data,
 };
 
 export default api;

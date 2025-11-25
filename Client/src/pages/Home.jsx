@@ -1,7 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Table from "../components/Table";
 import LoginWarning from "../components/LoginWarning";
-import CoinGeckoAttribution from "../components/CoinGeckoAttribution";
 import DataSourceSummary from "../components/DataSourceSummary";
 import CoinMarketplace from "../components/CoinMarketplace";
 import { useAuth } from "../context/AuthContext";
@@ -34,7 +33,7 @@ const Home = ({
 			coin.symbol.toLowerCase().includes(search.toLowerCase())
 	);
 
-	const handleOpenMarketplace = (coin) => {
+	const handleOpenMarketplace = useCallback((coin) => {
 		if (isAuthenticated) {
 			// Show marketplace instead of form
 			setSelectedCoin(coin);
@@ -43,13 +42,13 @@ const Home = ({
 			// Show login warning
 			openLoginPrompt();
 		}
-	};
+	}, [isAuthenticated, openLoginPrompt]);
 
-	const handleBuySuccess = () => {
+	const handleBuySuccess = useCallback(() => {
 		// Optionally update portfolio or show success
 		setMarketplaceOpen(false);
 		setSelectedCoin(null);
-	};
+	}, []);
 
 	if (showLoginPrompt && !isAuthenticated) {
 		return <LoginWarning onClose={closeLoginPrompt} />;
@@ -71,7 +70,6 @@ const Home = ({
 							setSearchValue={setSearch}
 							placeholder="Search crypto.."
 						/>
-						<CoinGeckoAttribution />
 					</div>
 
 					{/* View mode switch */}

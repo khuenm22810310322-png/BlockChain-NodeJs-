@@ -2,9 +2,17 @@
 require("dotenv").config();
 const axios = require('axios');
 const { ethers } = require('ethers');
-const { mapCoinGeckoToChainlink } = require('./utils/idMapper');
+const { mapCoinGeckoToChainlink, supported } = require('./utils/idMapper');
 const { getFeedAddressForPair } = require('./utils/chainlinkFeeds');
 const { resolveFeedBySymbols } = require('./utils/feedRegistry');
+
+// Load local metadata cache if available (to avoid CoinGecko API for images/names)
+let localMeta = {};
+try {
+  localMeta = require('./cache/coingecko-meta.json');
+} catch (_) {
+  // If file missing, we'll fallback to supported list or basic formatting
+}
 
 // Simple in-memory cache
 const { getFeedForCoin } = require("./services/feedDiscovery");
@@ -144,94 +152,95 @@ async function getChainlinkPrices(pairIds) {
   return results;
 }
 
-// === HÀM MỚI: KẾT HỢP HYBRID ===
-async function getMergedPriceData(coinGeckoIds) {
-  console.log('🔍 getMergedPriceData called with coins:', coinGeckoIds);
+// Micro-cache để tránh spam RPC khi loop 1s (TTL: 10s - tương đương block time Ethereum)
+const microCache = new Map(); 
+
+// === HÀM MỚI: CHAINLINK ONLY (NO COINGECKO API) ===
+async function getMergedPriceData(coinGeckoIds, bypassCache = false) {
+  // console.log('🔍 getMergedPriceData (Chainlink Only) called with:', coinGeckoIds);
   
-  // Check cache first
-  const cacheKey = `merged_${coinGeckoIds.sort().join(',')}`;
-  const cached = await cacheManager.get(cacheKey);
-  if (cached) {
-    console.log('✅ Returning cached data for', coinGeckoIds.length, 'coins:', cached.map(c => c.id));
-    return cached;
+  const sortedIds = coinGeckoIds.sort().join(',');
+  const cacheKey = `merged_cl_only_${sortedIds}`;
+
+  // 1. Nếu không bypass cache (API thường), dùng cacheManager (Redis/Mongo/Memory)
+  if (!bypassCache) {
+    const cached = await cacheManager.get(cacheKey);
+    if (cached) return cached;
+  } 
+  // 2. Nếu bypass cache (Socket loop), dùng Micro-cache (10s) để tiết kiệm RPC
+  else {
+    const micro = microCache.get(cacheKey);
+    if (micro && Date.now() - micro.ts < 10000) { // 10s TTL
+      return micro.data;
+    }
   }
   
-  console.log('⏳ Cache miss, fetching fresh data...');
-
-  // De-duplicate concurrent requests for the same key
+  // De-duplicate concurrent requests
   if (inFlight.has(cacheKey)) {
     return inFlight.get(cacheKey);
   }
 
-  const idsString = coinGeckoIds.join(',');
-  const coingeckoUrl = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${idsString}&order=market_cap_desc&sparkline=false`;
-  
-  const chainlinkIds = mapCoinGeckoToChainlink(coinGeckoIds);
   const promise = (async () => {
     try {
-      // 1. Gọi song song CoinGecko (metadata) và Chainlink (giá)
-      const [coingeckoResponse, chainlinkPrices] = await Promise.all([
-        axiosGetWithRetry(coingeckoUrl, { 
-          timeout: 30000, // 30 seconds
-          headers: { 'Accept': 'application/json' }
-        }, 1, 500),
-        getChainlinkPrices(chainlinkIds)
-      ]);
+      // 1. Map IDs and fetch Chainlink prices
+      const chainlinkIds = mapCoinGeckoToChainlink(coinGeckoIds);
+      const chainlinkPrices = await getChainlinkPrices(chainlinkIds);
 
-      const coingeckoData = coingeckoResponse.data;
-
-      // 2. Trộn (Merge) dữ liệu kèm kiểm tra độ mới của Chainlink
-      const mergedData = coingeckoData.map(coin => {
-        const chainlinkId = mapCoinGeckoToChainlink([coin.id])[0];
-        const chainlinkPriceData = chainlinkPrices.find(p => p.coin === chainlinkId);
-
-        const chainlinkFresh = chainlinkPriceData && chainlinkPriceData.price !== null && isFreshUnixSeconds(chainlinkPriceData.updatedAt);
-
-        let finalPrice;
-        let priceSource = "CoinGecko (Fallback)";
-        if (chainlinkFresh) {
-          finalPrice = chainlinkPriceData.price;
-          priceSource = "Chainlink (Oracle)";
-        } else {
-          finalPrice = coin.current_price; // fallback
-          if (chainlinkPriceData && chainlinkPriceData.price !== null) {
-            priceSource = "Chainlink (Stale → CoinGecko Fallback)";
-          }
+      // 2. Build response using local metadata + Chainlink price
+      const mergedData = coinGeckoIds.map(id => {
+        const lowerId = id.toLowerCase();
+        
+        // Try to find metadata in this order:
+        // 1. localMeta (from cache/coingecko-meta.json)
+        // 2. supported list (from supported-coins.json)
+        // 3. Fallback to formatting the ID
+        
+        let meta = localMeta[lowerId];
+        if (!meta) {
+            const sup = supported.find(c => c.coinGeckoId.toLowerCase() === lowerId);
+            if (sup) {
+                meta = {
+                    name: sup.name,
+                    symbol: sup.symbol,
+                    image: null // supported-coins.json usually doesn't have images
+                };
+            }
         }
 
+        const name = meta?.name || id.charAt(0).toUpperCase() + id.slice(1);
+        const symbol = (meta?.symbol || id).toUpperCase();
+        const image = meta?.image || meta?.large || meta?.small || meta?.thumb || null;
+
+        // Find price
+        const chainlinkId = mapCoinGeckoToChainlink([id])[0];
+        const chainlinkPriceData = chainlinkPrices.find(p => p.coin === chainlinkId);
+        const price = chainlinkPriceData?.price || 0;
+
         return {
-          id: coin.id,
-          symbol: coin.symbol,
-          name: coin.name,
-          image: coin.image,
-          market_cap: coin.market_cap,
-          market_cap_rank: coin.market_cap_rank,
-          price_change_percentage_24h: coin.price_change_percentage_24h,
-          current_price: finalPrice,
-          price_source: priceSource,
-          dataSource: priceSource.includes('Chainlink (Oracle)') ? 'chainlink' : 'coingecko',
+          id: id,
+          symbol: symbol,
+          name: name,
+          image: image,
+          market_cap: 0, // Not available from Chainlink
+          market_cap_rank: null,
+          price_change_percentage_24h: 0, // Not available
+          current_price: price,
+          price_source: "Chainlink (Oracle)",
+          dataSource: "chainlink",
           chainlinkUpdatedAt: chainlinkPriceData?.updatedAt || null,
-          chainlinkIsStale: chainlinkPriceData ? !chainlinkFresh : null,
+          chainlinkIsStale: false,
         };
       });
 
       // Cache the result
       await cacheManager.set(cacheKey, mergedData);
+      
+      // Update Micro-cache
+      microCache.set(cacheKey, { data: mergedData, ts: Date.now() });
+      
       return mergedData;
     } catch (error) {
-      console.error('Error in getMergedPriceData:', error.message);
-      
-      // If rate limited or any error, return cached data even if expired
-      const expiredCache = await cacheManager.get(cacheKey);
-      if (expiredCache) {
-        console.log('Error occurred, returning expired cache for', coinGeckoIds.length, 'coins');
-        return expiredCache;
-      }
-      
-      // If no cache at all, throw error
-      if (error.response?.status === 429) {
-        throw new Error('CoinGecko API rate limit exceeded and no cached data available. Please try again later.');
-      }
+      console.error('Error in getMergedPriceData (CL Only):', error.message);
       throw error;
     } finally {
       inFlight.delete(cacheKey);

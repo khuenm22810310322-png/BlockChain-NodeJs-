@@ -54,13 +54,19 @@ export const WalletProvider = ({ children }) => {
 			});
 			const walletAddress = accounts[0].toLowerCase();
 			
-			// If user already has a wallet, validate it matches
+			// If user already has a wallet, warn them if they are changing it
 			if (user?.walletAddress) {
 				const savedWallet = user.walletAddress.toLowerCase();
 				if (walletAddress !== savedWallet) {
-					toast.error(`Tài khoản này đã được liên kết với ví ${savedWallet.substring(0, 10)}...\nVui lòng chuyển sang ví đã liên kết!`);
-					setError("Wrong wallet address");
-					return;
+					const confirmChange = window.confirm(
+						`Tài khoản của bạn đang liên kết với ví: ${savedWallet.substring(0, 6)}...${savedWallet.substring(savedWallet.length - 4)}\n` +
+						`Bạn có chắc chắn muốn đổi sang ví mới: ${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)} không?`
+					);
+					
+					if (!confirmChange) {
+						toast.info("Đã hủy thay đổi ví.");
+						return;
+					}
 				}
 			}
 			
@@ -78,7 +84,10 @@ export const WalletProvider = ({ children }) => {
 				console.log("Wallet address synced to backend");
 			} catch (err) {
 				console.error("Could not sync wallet address:", err);
-				toast.error("Không thể lưu địa chỉ ví. Vui lòng thử lại!");
+				const errorMsg = err.response?.data?.error || "Không thể lưu địa chỉ ví. Vui lòng thử lại!";
+				toast.error(errorMsg);
+				// If backend sync fails, disconnect locally to maintain consistency
+				setAccount(null);
 			}
 		} catch (e) {
 			if (e.code === 4001) {

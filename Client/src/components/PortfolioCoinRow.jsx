@@ -12,6 +12,7 @@ const PortfolioCoinRow = ({
 	onSellClick,
 }) => {
 	const { currency, formatCurrency } = useCurrency();
+	const canBuy = typeof onAddClick === "function";
 
 	if (!coinData) {
 		return <></>;
@@ -74,9 +75,14 @@ const PortfolioCoinRow = ({
 						{isStarred ? <StarIcon /> : <StarOutlineIcon />}
 					</button>
 					<button
-						className="px-3 py-1 bg-green-600 text-white text-sm font-semibold rounded-md hover:bg-green-700 transition-all duration-200 cursor-pointer"
+						className={`px-3 py-1 text-white text-sm font-semibold rounded-md transition-all duration-200 cursor-pointer ${
+							canBuy
+								? "bg-green-600 hover:bg-green-700"
+								: "bg-gray-400 cursor-not-allowed"
+						}`}
+						disabled={!canBuy}
 						onClick={() => {
-							onAddClick && onAddClick(coin);
+							canBuy && onAddClick(coin);
 						}}
 					>
 						Buy

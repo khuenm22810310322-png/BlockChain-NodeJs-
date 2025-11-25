@@ -3,7 +3,7 @@ import { useWallet } from "../context/WalletContext";
 import { toast } from "react-toastify";
 import api from "../services/api";
 
-export default function SellModal({ coin, portfolio, onClose, onSuccess }) {
+export default function SellModal({ coin, portfolio, onClose, onSuccess, onPortfolioUpdate }) {
 	const { isConnected, connect, account } = useWallet();
 	const [amount, setAmount] = useState("");
 	const [pricePerUnit, setPricePerUnit] = useState("");
@@ -30,11 +30,11 @@ export default function SellModal({ coin, portfolio, onClose, onSuccess }) {
 			return;
 		}
 
-		try {
-			setLoading(true);
-			
-			// Get contract config and token addresses from backend
-			const [configRes, tokensRes] = await Promise.all([
+	try {
+		setLoading(true);
+		
+		// Get contract config and token addresses from backend
+		const [configRes, tokensRes] = await Promise.all([
 				api.get("/api/marketplace/config"),
 				api.get("/api/marketplace/tokens")
 			]);
@@ -54,33 +54,104 @@ export default function SellModal({ coin, portfolio, onClose, onSuccess }) {
 			const { ethers } = await import("ethers");
 			const provider = new ethers.BrowserProvider(window.ethereum);
 			const signer = await provider.getSigner();
+			const signerAddress = await signer.getAddress();
 			
-			// Get token address based on coin ID (map to mock tokens)
-			const tokenAddress = mockTokens[coin.id] || mockTokens.bitcoin; // Default to BTC if not found
+			// Verify wallet matches logged in account
+			if (account && signerAddress.toLowerCase() !== account.toLowerCase()) {
+				toast.error(`❌ Ví MetaMask không khớp! Vui lòng chuyển sang ví ${account.slice(0, 6)}...${account.slice(-4)}`);
+				setLoading(false);
+				return;
+			}
 			
+			// Resolve token address robustly (id or symbol, any case)
+			const resolveTokenAddress = (tokensMap, coinObj) => {
+				if (!tokensMap || !coinObj) return null;
+				const keys = Object.keys(tokensMap);
+				const targets = [
+					coinObj.id?.toLowerCase?.(),
+					coinObj.symbol?.toLowerCase?.(),
+					coinObj.id?.toUpperCase?.(),
+					coinObj.symbol?.toUpperCase?.(),
+				].filter(Boolean);
+				for (const key of keys) {
+					const kLower = key.toLowerCase();
+					if (targets.includes(kLower)) return tokensMap[key];
+				}
+				return null;
+			};
+
+			const tokenAddress = resolveTokenAddress(mockTokens, coin);
 			if (!tokenAddress) {
-				throw new Error(`Token address not found for ${coin.id}`);
+				throw new Error(`Token address not found for ${coin.id || coin.symbol}`);
+			}
+
+			// Ensure token contract exists at address
+			const code = await provider.getCode(tokenAddress);
+			if (!code || code === "0x") {
+				throw new Error(`Token contract not found at ${tokenAddress}. Vui lòng redeploy Hardhat và cập nhật deployed-tokens.json`);
 			}
 			
 			// Create contract instances
 			const marketplaceContract = new ethers.Contract(marketplaceAddress, abi, signer);
 			
-			// ERC20 ABI for approve
+			// Minimal ERC20 ABI for faucet/approve/allowance/balanceOf/transferFrom
 			const erc20Abi = [
+				"function faucet(uint256 amount) external",
 				"function approve(address spender, uint256 amount) external returns (bool)",
-				"function allowance(address owner, address spender) external view returns (uint256)"
+				"function allowance(address owner, address spender) external view returns (uint256)",
+				"function balanceOf(address owner) external view returns (uint256)",
+				"function transferFrom(address from, address to, uint256 amount) external returns (bool)",
+				"function symbol() view returns (string)"
 			];
 			const tokenContract = new ethers.Contract(tokenAddress, erc20Abi, signer);
 			
+			// Debug info
+			console.log("--- SELL DEBUG ---");
+			console.log("Wallet:", account);
+			console.log("Token Address:", tokenAddress);
+			console.log("Available Tokens:", Object.keys(mockTokens)); // Add this line
+			try {
+				const sym = await tokenContract.symbol();
+				console.log("Token Symbol:", sym);
+			} catch (e) { console.log("Could not get symbol"); }
+
 			const paymentToken = ethers.ZeroAddress; // Native ETH
 			
 			// Convert to Wei (18 decimals)
 			const amountWei = ethers.parseUnits(amount.toString(), 18);
+			// Store price scaled down by 1e18 so contract total = priceRaw * amountRaw
 			const priceWei = ethers.parseUnits(pricePerUnit.toString(), 18);
+
+			// Step 0: Check balance before any approvals/calls
+			let userBalance = 0n;
+			try {
+				// Use signerAddress instead of account from context to ensure we check the active wallet
+				userBalance = await tokenContract.balanceOf(signerAddress);
+				console.log("Checking balance for:", signerAddress);
+				console.log("User Balance (Wei):", userBalance.toString());
+				console.log("User Balance (Eth):", ethers.formatUnits(userBalance, 18));
+			} catch (balErr) {
+				console.warn("Balance check failed, treating as 0:", balErr);
+				userBalance = 0n;
+			}
+
+			if (userBalance < amountWei) {
+				const balanceEth = ethers.formatUnits(userBalance, 18);
+				console.error(`Insufficient balance. Has: ${balanceEth}, Needs: ${amount}`);
+				toast.error(`❌ Không đủ token. Có: ${balanceEth}, Cần: ${amount}. Vui lòng mua thêm.`);
+				setLoading(false);
+				return;
+			}
 			
 			// Step 1: Check and approve token spending
 			toast.info("🔐 Kiểm tra allowance...");
-			const currentAllowance = await tokenContract.allowance(account, marketplaceAddress);
+			let currentAllowance = 0n;
+			try {
+				currentAllowance = await tokenContract.allowance(signerAddress, marketplaceAddress);
+			} catch (allowErr) {
+				console.warn("Allowance check failed, treating as 0:", allowErr);
+				currentAllowance = 0n;
+			}
 			
 			if (currentAllowance < amountWei) {
 				toast.info("⏳ Đang approve token... Vui lòng xác nhận trên MetaMask");
@@ -110,11 +181,22 @@ export default function SellModal({ coin, portfolio, onClose, onSuccess }) {
 					totalValue: (amountWei * priceWei / ethers.parseUnits("1", 18)).toString(),
 				});
 				
-				// Deduct coin from portfolio
-				await api.post("/api/portfolio/remove", {
-					coinId: coin.id,
-					coinSymbol: coin.symbol,
-					amount: parseFloat(amount),
+				// Deduct coin from portfolio using existing update endpoint
+				const owned = portfolio?.[coin.id];
+				const ownedCoins = owned?.coins || 0;
+				const ownedInvestment = owned?.totalInvestment || 0;
+				const sellAmount = parseFloat(amount);
+				let deltaInvestment = 0;
+				if (ownedCoins > 0) {
+					const ratio = sellAmount / ownedCoins;
+					deltaInvestment = ownedInvestment * ratio;
+				}
+				await api.put("/portfolio/update", {
+					coin: coin.id,
+					coinData: {
+						totalInvestment: -deltaInvestment,
+						coins: -sellAmount,
+					},
 				});
 			} catch (dbError) {
 				console.warn("Failed to save transaction:", dbError);
@@ -123,6 +205,7 @@ export default function SellModal({ coin, portfolio, onClose, onSuccess }) {
 
 			toast.success(`✅ Đã đăng bán ${amount} ${coin.symbol.toUpperCase()}!`);
 			onSuccess && onSuccess();
+			onPortfolioUpdate && (await onPortfolioUpdate());
 			onClose();
 		} catch (error) {
 			console.error("Sell error:", error);

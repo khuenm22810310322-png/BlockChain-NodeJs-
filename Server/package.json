@@ -13,6 +13,7 @@
 	"license": "ISC",
 	"description": "This README contains quick notes about configuring Chainlink Feed Registry support for CryptoTrack backend.",
 	"dependencies": {
+		"@paypal/checkout-server-sdk": "^1.0.3",
 		"axios": "^1.12.2",
 		"bcrypt": "^6.0.0",
 		"bull": "^4.12.2",
@@ -21,13 +22,19 @@
 		"dotenv": "^17.2.3",
 		"ethers": "^6.15.0",
 		"express": "^5.1.0",
+		"express-mongo-sanitize": "^2.2.0",
+		"express-rate-limit": "^8.2.1",
+		"helmet": "^8.1.0",
+		"hpp": "^0.2.3",
 		"jsonwebtoken": "^9.0.2",
 		"mongoose": "^8.16.4",
 		"passport": "^0.7.0",
 		"passport-jwt": "^4.0.1",
 		"passport-local": "^1.0.0",
 		"redis": "^4.7.0",
-		"socket.io": "^4.8.1"
+		"socket.io": "^4.8.1",
+		"xss": "^1.0.15",
+		"xss-clean": "^0.1.4"
 	},
 	"devDependencies": {
 		"@types/node": "^22.19.1",

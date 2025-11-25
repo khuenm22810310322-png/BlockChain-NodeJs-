@@ -10,7 +10,7 @@ import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import useTheme from "../hooks/useTheme";
 
 const Header = ({ menu, toggleMenu, handleLogout }) => {
-	const { isAuthenticated } = useAuth();
+	const { isAuthenticated, user } = useAuth();
 	const { account, isConnected, connect, disconnect } = useWallet();
 	const { theme, setTheme } = useTheme();
 
@@ -23,19 +23,21 @@ const Header = ({ menu, toggleMenu, handleLogout }) => {
 				CryptoTrack
 			</NavLink>
 			<ul className="hidden sm:flex items-center gap-4">
-				<NavLink
-					to="/"
-					className={({ isActive }) =>
-						`rounded-sm px-3 py-2 text-sm font-medium ${
-							isActive
-								? "bg-blue-200 text-blue-700 dark:bg-blue-700/20 dark:text-gray-100"
-								: "dark:text-gray-300 dark:hover:text-white dark:hover:bg-blue-500/1	0 text-gray-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer"
-						}`
-					}
-				>
-					Home
-				</NavLink>
-				<NavLink
+				{user?.role !== 'admin' && (
+					<NavLink
+						to="/"
+						className={({ isActive }) =>
+							`rounded-sm px-3 py-2 text-sm font-medium ${
+								isActive
+									? "bg-blue-200 text-blue-700 dark:bg-blue-700/20 dark:text-gray-100"
+									: "dark:text-gray-300 dark:hover:text-white dark:hover:bg-blue-500/1	0 text-gray-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer"
+							}`
+						}
+					>
+						Home
+					</NavLink>
+				)}
+				{/* <NavLink
 					to="/marketplace"
 					className={({ isActive }) =>
 						`rounded-sm px-3 py-2 text-sm font-medium ${
@@ -46,21 +48,77 @@ const Header = ({ menu, toggleMenu, handleLogout }) => {
 					}
 				>
 					Marketplace
-				</NavLink>
+				</NavLink> */}
 				{isAuthenticated ? (
 					<>
-						<NavLink
-							to="dashboard"
-							className={({ isActive }) =>
-								`rounded-sm px-3 py-2 text-sm font-medium ${
-									isActive
-										? "bg-blue-200 text-blue-700 dark:bg-blue-700/20 dark:text-gray-100"
-										: "dark:text-gray-300 dark:hover:text-white dark:hover:bg-blue-500/10 text-gray-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer"
-								}`
-							}
-						>
-							Dashboard
-						</NavLink>
+						{user?.role === 'admin' ? (
+							<>
+								<NavLink
+									to="/admin/analytics"
+									className={({ isActive }) =>
+										`rounded-sm px-3 py-2 text-sm font-medium ${
+											isActive
+												? "bg-blue-200 text-blue-700 dark:bg-blue-700/20 dark:text-gray-100"
+												: "dark:text-gray-300 dark:hover:text-white dark:hover:bg-blue-500/10 text-gray-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer"
+										}`
+									}
+								>
+									Analytics
+								</NavLink>
+								<NavLink
+									to="/admin/audit-logs"
+									className={({ isActive }) =>
+										`rounded-sm px-3 py-2 text-sm font-medium ${
+											isActive
+												? "bg-blue-200 text-blue-700 dark:bg-blue-700/20 dark:text-gray-100"
+												: "dark:text-gray-300 dark:hover:text-white dark:hover:bg-blue-500/10 text-gray-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer"
+										}`
+									}
+								>
+									Audit Logs
+								</NavLink>
+								<NavLink
+									to="/admin"
+									end
+									className={({ isActive }) =>
+										`rounded-sm px-3 py-2 text-sm font-medium ${
+											isActive
+												? "bg-blue-200 text-blue-700 dark:bg-blue-700/20 dark:text-gray-100"
+												: "dark:text-gray-300 dark:hover:text-white dark:hover:bg-blue-500/10 text-gray-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer"
+										}`
+									}
+								>
+									Users
+								</NavLink>
+							</>
+						) : (
+							<>
+								<NavLink
+									to="dashboard"
+									className={({ isActive }) =>
+										`rounded-sm px-3 py-2 text-sm font-medium ${
+											isActive
+												? "bg-blue-200 text-blue-700 dark:bg-blue-700/20 dark:text-gray-100"
+												: "dark:text-gray-300 dark:hover:text-white dark:hover:bg-blue-500/10 text-gray-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer"
+										}`
+									}
+								>
+									Dashboard
+								</NavLink>
+								<NavLink
+									to="watchlist"
+									className={({ isActive }) =>
+										`rounded-sm px-3 py-2 text-sm font-medium ${
+											isActive
+												? "bg-blue-200 text-blue-700 dark:bg-blue-700/20 dark:text-gray-100"
+												: "dark:text-gray-300 dark:hover:text-white dark:hover:bg-blue-500/10 text-gray-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer"
+										}`
+									}
+								>
+									Watchlist
+								</NavLink>
+							</>
+						)}
 						<NavLink
 							to="profile"
 							className={({ isActive }) =>
@@ -72,18 +130,6 @@ const Header = ({ menu, toggleMenu, handleLogout }) => {
 							}
 						>
 							Profile
-						</NavLink>
-						<NavLink
-							to="watchlist"
-							className={({ isActive }) =>
-								`rounded-sm px-3 py-2 text-sm font-medium ${
-									isActive
-										? "bg-blue-200 text-blue-700 dark:bg-blue-700/20 dark:text-gray-100"
-										: "dark:text-gray-300 dark:hover:text-white dark:hover:bg-blue-500/10 text-gray-700 hover:bg-blue-50 hover:text-blue-700 cursor-pointer"
-								}`
-							}
-						>
-							Watchlist
 						</NavLink>
 						<NavLink
 							to="transactions"

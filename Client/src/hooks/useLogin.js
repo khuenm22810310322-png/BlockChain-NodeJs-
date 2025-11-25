@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 export default function useLogin(username, password, onSuccess) {
 	const [error, setError] = useState("");
 	const [loading, setLoading] = useState(false);
+	const [captchaToken, setCaptchaToken] = useState(null);
 	const { login } = useAuth();
 	const navigate = useNavigate();
 
@@ -15,8 +16,14 @@ export default function useLogin(username, password, onSuccess) {
 		setLoading(true);
 		setError("");
 
+		if (!captchaToken) {
+			setError("Please complete the CAPTCHA");
+			setLoading(false);
+			return;
+		}
+
 		try {
-			const response = await authAPI.login(username, password);
+			const response = await authAPI.login(username, password, captchaToken);
 			login(response.token, response.user);
 			toast.success("Login successful, Welcome back!", {
 				position: "top-right",
@@ -37,5 +44,5 @@ export default function useLogin(username, password, onSuccess) {
 		}
 	};
 
-	return { handleSubmit, loading, error };
+	return { handleSubmit, loading, error, setCaptchaToken };
 }

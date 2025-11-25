@@ -61,7 +61,7 @@ const Table = ({
 						<CoinRow
 							key={coin.id}
 							coin={coin}
-							isStarred={watchlist.includes(coin.id)}
+							isStarred={watchlist.some(w => w.toLowerCase() === coin.id.toLowerCase())}
 							toggleWatchlist={toggleWatchlist}
 							onAddClick={onAddClick}
 							onRequireLogin={onRequireLogin}

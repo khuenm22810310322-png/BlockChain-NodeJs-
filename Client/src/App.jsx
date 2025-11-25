@@ -15,25 +15,70 @@ import SignUp from "./pages/SignUp";
 import Watchlist from "./pages/Watchlist";
 import Compare from "./pages/Compare";
 import AdminFeeds from "./pages/AdminFeeds";
-import Marketplace from "./pages/Marketplace";
 import Profile from "./pages/Profile";
 import TransactionHistory from "./pages/TransactionHistory";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminUserDetail from "./pages/admin/AdminUserDetail";
+import AdminAnalytics from "./pages/admin/AdminAnalytics";
+import AdminAuditLogs from "./pages/admin/AdminAuditLogs";
 import { AnimatePresence } from "motion/react";
 import { useAuth } from "./context/AuthContext";
 import { portfolioAPI, watchlistAPI } from "./services/api";
 import api from "./services/api";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { io } from "socket.io-client";
+import { PayPalScriptProvider } from "@paypal/react-paypal-js";
+
+const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 const App = () => {
 	const [menu, setMenu] = useState(false);
-	const { isAuthenticated, loading, logout } = useAuth();
+	const { isAuthenticated, loading, logout, user } = useAuth();
 	const [watchlist, setWatchlist] = useState([]);
 	const [form, setForm] = useState(false);
 	const [coinData, setCoinData] = useState({});
 	const [portfolio, setPortfolio] = useState({});
 	const [account, setAccount] = useState(null);
 	const navigate = useNavigate();
+
+	// Global Socket for Alerts
+	useEffect(() => {
+		if (isAuthenticated && user) {
+			const socket = io(SOCKET_URL);
+			
+			socket.on('connect', () => {
+				// Identify user for alerts
+				socket.emit('join', user.id);
+			});
+
+			socket.on('alert:triggered', (data) => {
+				// Play sound (optional)
+				// const audio = new Audio('/alert.mp3');
+				// audio.play().catch(e => {});
+
+				toast.info(
+					<div>
+						<h4 className="font-bold">Price Alert Triggered! 🔔</h4>
+						<p>{data.coinSymbol} is now {data.condition} ${data.targetPrice}</p>
+						<p className="text-xs">Current: ${data.currentPrice}</p>
+					</div>,
+					{
+						position: "top-right",
+						autoClose: 10000,
+						hideProgressBar: false,
+						closeOnClick: true,
+						pauseOnHover: true,
+						draggable: true,
+					}
+				);
+			});
+
+			return () => {
+				socket.disconnect();
+			};
+		}
+	}, [isAuthenticated, user]);
 	
 	// Connect MetaMask wallet
 	useEffect(() => {
@@ -88,7 +133,11 @@ const App = () => {
 				watchlistAPI.get(),
 			]);
 			setPortfolio(portfolioData);
-			setWatchlist(watchlistData.watchlist);
+			// Clean watchlist data (trim and lowercase) to prevent "ghost" coins
+			const cleanWatchlist = (watchlistData.watchlist || [])
+				.filter(id => id && typeof id === 'string')
+				.map(id => id.trim().toLowerCase());
+			setWatchlist([...new Set(cleanWatchlist)]);
 		} catch (error) {
 			if (error?.response?.status === 401) {
 				// Token invalid/expired -> log out to stop repeated 401 spam
@@ -96,6 +145,16 @@ const App = () => {
 			} else {
 				console.error("Failed to load user data:", error);
 			}
+		}
+	};
+
+	const refreshPortfolio = async () => {
+		try {
+			const data = await portfolioAPI.get();
+			setPortfolio(data);
+			return data;
+		} catch (e) {
+			console.error("Failed to refresh portfolio:", e);
 		}
 	};
 
@@ -260,9 +319,10 @@ const App = () => {
 	}
 
 	async function toggleWatchlist(coinId, coinName = null) {
+		const id = coinId.toLowerCase();
 		try {
-			if (!watchlist.includes(coinId)) {
-				const response = await watchlistAPI.add(coinId);
+			if (!watchlist.some(w => w.toLowerCase() === id)) {
+				const response = await watchlistAPI.add(id);
 				setWatchlist(response.watchlist);
 				toast.success(`${coinName || "Coin"} was added to watchlist`, {
 					position: "top-right",
@@ -273,7 +333,7 @@ const App = () => {
 					draggable: true,
 				});
 			} else {
-				const response = await watchlistAPI.remove(coinId);
+				const response = await watchlistAPI.remove(id);
 				setWatchlist(response.watchlist);
 				toast.info(`${coinName || "Coin"} was removed from watchlist`, {
 					position: "top-right",
@@ -306,36 +366,37 @@ const App = () => {
 	}
 
 	return (
-		<div className="min-h-screen bg-gray-50 dark:bg-gray-900 dark:text-gray-200">
-			<Header
-				menu={menu}
-				toggleMenu={toggleMenu}
-				handleLogout={handleLogout}
-			/>
-
-			<AnimatePresence>
-				{menu && <Menu handleLogout={handleLogout} />}
-			</AnimatePresence>
-			<Routes>
-				<Route
-					path="/"
-					element={
-						<Home
-							watchlist={watchlist}
-							toggleWatchlist={toggleWatchlist}
-							addCoin={addCoin}
-							form={form}
-							toggleForm={toggleForm}
-							coinData={coinData}
-						/>
-					}
+		<PayPalScriptProvider options={{ "client-id": import.meta.env.VITE_PAYPAL_CLIENT_ID || "sb", currency: "USD" }}>
+			<div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white transition-colors duration-300 font-inter">
+				<Header
+					menu={menu}
+					toggleMenu={toggleMenu}
+					handleLogout={handleLogout}
 				/>
-				<Route
-					path="/dashboard"
-					element={
-						isAuthenticated ? (
-							<Dashboard
+
+				<AnimatePresence>
+					{menu && <Menu handleLogout={handleLogout} />}
+				</AnimatePresence>
+				<Routes>
+					<Route
+						path="/"
+						element={
+							<Home
 								watchlist={watchlist}
+								toggleWatchlist={toggleWatchlist}
+								addCoin={addCoin}
+								form={form}
+								toggleForm={toggleForm}
+								coinData={coinData}
+							/>
+						}
+					/>
+					<Route
+						path="/dashboard"
+						element={
+							isAuthenticated ? (
+								<Dashboard
+									watchlist={watchlist}
 								toggleWatchlist={toggleWatchlist}
 								portfolio={portfolio}
 								addCoin={addCoin}
@@ -343,76 +404,128 @@ const App = () => {
 								toggleForm={toggleForm}
 								coinData={coinData}
 								removeCoin={removeCoin}
+								onPortfolioUpdate={refreshPortfolio}
 							/>
 						) : (
 							<Navigate to="/login" />
 						)
 					}
+					/>
+					<Route
+						path="/watchlist"
+						element={
+							isAuthenticated ? (
+								<Watchlist
+									watchlist={watchlist}
+									toggleForm={toggleForm}
+									toggleWatchlist={toggleWatchlist}
+									addCoin={addCoin}
+									form={form}
+									coinData={coinData}
+								/>
+							) : (
+								<Navigate to="/login" />
+							)
+						}
+					/>
+					<Route path="/compare" element={<Compare />} />
+					{/* <Route path="/marketplace" element={<Marketplace />} /> */}
+					<Route
+						path="/profile"
+						element={
+							isAuthenticated ? <Profile /> : <Navigate to="/login" />
+						}
+					/>
+					<Route
+						path="/transactions"
+						element={
+							isAuthenticated ? <TransactionHistory /> : <Navigate to="/login" />
+						}
+					/>
+					<Route 
+						path="/admin" 
+						element={
+							isAuthenticated && user?.role === 'admin' ? (
+								<AdminDashboard />
+							) : (
+								<Navigate to="/dashboard" />
+							)
+						} 
+					/>
+					<Route 
+						path="/admin/analytics" 
+						element={
+							isAuthenticated && user?.role === 'admin' ? (
+								<AdminAnalytics />
+							) : (
+								<Navigate to="/dashboard" />
+							)
+						} 
+					/>
+					{/* <Route 
+						path="/admin/marketplace" 
+						element={
+							isAuthenticated && user?.role === 'admin' ? (
+								<AdminMarketplace />
+							) : (
+								<Navigate to="/dashboard" />
+							)
+						} 
+					/> */}
+					<Route 
+						path="/admin/audit-logs" 
+						element={
+							isAuthenticated && user?.role === 'admin' ? (
+								<AdminAuditLogs />
+							) : (
+								<Navigate to="/dashboard" />
+							)
+						} 
+					/>
+					<Route 
+						path="/admin/users/:id" 
+						element={
+							isAuthenticated && user?.role === 'admin' ? (
+								<AdminUserDetail />
+							) : (
+								<Navigate to="/dashboard" />
+							)
+						} 
+					/>
+					<Route path="/admin/feeds" element={<AdminFeeds />} />
+					<Route
+						path="/login"
+						element={
+							isAuthenticated ? (
+								<Navigate to="/dashboard" />
+							) : (
+								<Login toggleForm={toggleForm} form={form} />
+							)
+						}
+					/>
+					<Route
+						path="/signup"
+						element={
+							isAuthenticated ? (
+								<Navigate to="/dashboard" />
+							) : (
+								<SignUp />
+							)
+						}
+					/>
+				</Routes>
+				<ToastContainer
+					position="top-right"
+					autoClose={3000}
+					hideProgressBar={false}
+					newestOnTop={false}
+					closeOnClick
+					rtl={false}
+					draggable
+					theme="light"
 				/>
-				<Route
-					path="/watchlist"
-					element={
-						isAuthenticated ? (
-							<Watchlist
-								watchlist={watchlist}
-								toggleForm={toggleForm}
-								toggleWatchlist={toggleWatchlist}
-								addCoin={addCoin}
-								form={form}
-								coinData={coinData}
-							/>
-						) : (
-							<Navigate to="/login" />
-						)
-					}
-				/>
-				<Route path="/compare" element={<Compare />} />
-				<Route path="/marketplace" element={<Marketplace />} />
-				<Route
-					path="/profile"
-					element={
-						isAuthenticated ? <Profile /> : <Navigate to="/login" />
-					}
-				/>
-				<Route
-					path="/transactions"
-					element={
-						isAuthenticated ? <TransactionHistory /> : <Navigate to="/login" />
-					}
-				/>
-				<Route path="/admin/feeds" element={<AdminFeeds />} />
-				<Route
-					path="/login"
-					element={
-						isAuthenticated ? (
-							<Navigate to="/dashboard" />
-						) : (
-							<Login toggleForm={toggleForm} form={form} />
-						)
-					}
-				/>
-				<Route
-					path="/signup"
-					element={
-						isAuthenticated ? (
-							<Navigate to="/dashboard" />
-						) : (
-							<SignUp />
-						)
-					}
-				/>
-			</Routes>
-			<ToastContainer
-				position="top-right"
-				autoClose={3000}
-				hideProgressBar={false}
-				newestOnTop={false}
-				closeOnClick
-				rtl={false}
-				draggable
-				theme="light"
-			/>
-		</div>
+			</div>
+		</PayPalScriptProvider>
 	);
 };
 

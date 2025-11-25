@@ -1,3 +1,21 @@
 @import "tailwindcss";
 
 @variant dark (.dark &);
+
+@keyframes flashGreen {
+  0% { color: #16a34a; background-color: rgba(22, 163, 74, 0.1); }
+  100% { color: inherit; background-color: transparent; }
+}
+
+@keyframes flashRed {
+  0% { color: #dc2626; background-color: rgba(220, 38, 38, 0.1); }
+  100% { color: inherit; background-color: transparent; }
+}
+
+.flash-green {
+  animation: flashGreen 1s ease-out;
+}
+
+.flash-red {
+  animation: flashRed 1s ease-out;
+}

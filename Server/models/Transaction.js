@@ -10,7 +10,7 @@ const transactionSchema = new mongoose.Schema(
 		},
 		type: {
 			type: String,
-			enum: ["createListing", "buy", "cancel", "buyFromExchange"],
+			enum: ["createListing", "buy", "cancel", "buyFromExchange", "buyFromListing", "deposit"],
 			required: true,
 		},
 		user: {

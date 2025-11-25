@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import api from "../services/api";
 import { toast } from "react-toastify";
 import { ethers } from "ethers";
+import { getExplorerUrl } from "../utils/explorer";
 
 const TransactionHistory = () => {
 	const [transactions, setTransactions] = useState([]);
@@ -72,6 +73,15 @@ const TransactionHistory = () => {
 		return colors[status] || "text-gray-500";
 	};
 
+	const formatAmountDisplay = (amountWei) => {
+		const n = Number(formatAmount(amountWei));
+		if (!Number.isFinite(n)) return "0";
+		return new Intl.NumberFormat("en-US", {
+			minimumFractionDigits: 0,
+			maximumFractionDigits: 6,
+		}).format(n);
+	};
+
 	return (
 		<div className="container mx-auto px-4 py-8">
 			<div className="flex justify-between items-center mb-6">
@@ -137,7 +147,7 @@ const TransactionHistory = () => {
 											</div>
 										</td>
 										<td className="px-4 py-3 text-right font-mono">
-											{parseFloat(formatAmount(tx.amount)).toFixed(4)}
+											{formatAmountDisplay(tx.amount)}
 										</td>
 										<td className="px-4 py-3">
 											<span className={`text-sm font-semibold ${getStatusColor(tx.status)}`}>
@@ -148,14 +158,20 @@ const TransactionHistory = () => {
 											{new Date(tx.createdAt).toLocaleString("vi-VN")}
 										</td>
 										<td className="px-4 py-3">
-											<a
-												href={`https://etherscan.io/tx/${tx.txHash}`}
-												target="_blank"
-												rel="noopener noreferrer"
-												className="text-blue-400 hover:text-blue-300 text-xs font-mono"
-											>
-												{tx.txHash.slice(0, 10)}...{tx.txHash.slice(-8)}
-											</a>
+											{getExplorerUrl(tx.txHash) ? (
+												<a
+													href={getExplorerUrl(tx.txHash)}
+													target="_blank"
+													rel="noopener noreferrer"
+													className="text-blue-400 hover:text-blue-300 text-xs font-mono"
+												>
+													{tx.txHash.slice(0, 10)}...{tx.txHash.slice(-8)}
+												</a>
+											) : (
+												<span className="text-gray-500 text-xs font-mono" title={tx.txHash}>
+													{tx.txHash.slice(0, 10)}... (Local)
+												</span>
+											)}
 										</td>
 									</tr>
 								))}

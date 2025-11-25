@@ -1,10 +1,14 @@
 const express = require("express");
 const cors = require("cors");
 const db = require("./db");
-require("dotenv").config();
+const path = require("path");
+// Explicitly load env from Server/.env so Marketplace address matches redeploys
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 const jwt = require("jsonwebtoken");
 const User = require("./models/Users");
 const marketplaceRouter = require("./routes/marketplace");
+const paymentRouter = require("./routes/payment");
+const adminRouter = require("./routes/admin");
 const {
 	getMergedPriceData,
 	warmTopFeeds,
@@ -26,12 +30,29 @@ const TokenAddress = require("./models/TokenAddress");
 const DiscoveredFeed = require("./models/DiscoveredFeed");
 const { discoverFeed, upsertTokenAddresses } = require("./services/feedDiscovery");
 const axios = require("axios");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+// const mongoSanitize = require("express-mongo-sanitize");
+// const xss = require("xss-clean");
+const xss = require("xss");
+const hpp = require("hpp");
+
 const PORT = process.env.PORT || 3000;
 const app = express();
 
 // We'll attach socket.io later after creating the HTTP server
 let io;
 const cacheManager = getCacheManager();
+
+// Set security headers
+app.use(helmet());
+
+// Rate limiting
+const limiter = rateLimit({
+	windowMs: 10 * 60 * 1000, // 10 minutes
+	max: 100, // limit each IP to 100 requests per windowMs
+});
+app.use(limiter);
 
 // Helpers to keep portfolio keys consistent (always CoinGecko ids)
 function toPortfolioMap(rawPortfolio) {
@@ -56,7 +77,7 @@ const TOP100_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 let inFlightTop100 = null;
 const SNAPSHOT_INTERVAL_MS = parseInt(process.env.PRICE_SNAPSHOT_INTERVAL_MS || "300000", 10); // default 5m
 
-// CORS: allow production client and local dev (Vite)
+// CORS: allow production client, local dev (Vite), and Ngrok
 const allowedOrigins = [
 	process.env.CLIENT || "https://cryptotrack-ultimez.vercel.app",
 	"http://localhost:5173",
@@ -66,7 +87,8 @@ app.use(
 		origin: function (origin, callback) {
 			// allow requests with no origin (like curl, Postman)
 			if (!origin) return callback(null, true);
-			if (allowedOrigins.includes(origin)) {
+			// Allow allowedOrigins OR any ngrok-free.app domain (for testing)
+			if (allowedOrigins.includes(origin) || origin.endsWith(".ngrok-free.app")) {
 				return callback(null, true);
 			}
 			return callback(new Error("Not allowed by CORS"));
@@ -75,10 +97,65 @@ app.use(
 	})
 );
 
+const alertsRouter = require("./routes/alerts");
+const PriceAlert = require("./models/PriceAlert");
+
 app.use(express.json());
+
+// Data sanitization against NoSQL query injection
+// Custom middleware to sanitize data without reassigning req.query (Express 5 fix)
+app.use((req, res, next) => {
+	const sanitize = (obj) => {
+		if (obj && typeof obj === "object") {
+			for (const key of Object.keys(obj)) {
+				// Remove keys starting with $ or containing .
+				if (/^\$|\./.test(key)) {
+					delete obj[key];
+				} else {
+					sanitize(obj[key]);
+				}
+			}
+		}
+	};
+	if (req.body) sanitize(req.body);
+	if (req.query) sanitize(req.query);
+	if (req.params) sanitize(req.params);
+	next();
+});
+
+// Data sanitization against XSS
+// Custom middleware using xss library to avoid reassigning req.query
+app.use((req, res, next) => {
+	const sanitizeXss = (data) => {
+		if (typeof data === 'string') {
+			return xss(data);
+		}
+		if (Array.isArray(data)) {
+			return data.map(item => sanitizeXss(item));
+		}
+		if (data && typeof data === 'object') {
+			Object.keys(data).forEach(key => {
+				data[key] = sanitizeXss(data[key]);
+			});
+		}
+		return data;
+	};
+
+	if (req.body) sanitizeXss(req.body);
+	if (req.query) sanitizeXss(req.query);
+	if (req.params) sanitizeXss(req.params);
+	next();
+});
+
+// Prevent parameter pollution
+app.use(hpp());
+
 const passport = require("./auth");
 app.use(passport.initialize());
 app.use("/api/marketplace", marketplaceRouter);
+app.use("/api/payment", paymentRouter);
+app.use("/api/admin", adminRouter);
+app.use("/api/alerts", alertsRouter); // Register alerts route
 
 app.get("/", (req, res) => {
 	return res.send("API is running");
@@ -89,8 +166,31 @@ app.get("/test", (req, res) => {
 	return res.json({ message: "Test endpoint working", timestamp: new Date() });
 });
 
+// Helper for Captcha Verification
+const verifyCaptcha = async (token) => {
+	if (!token) return false;
+	// Use provided secret or default to Google's Test Secret Key
+	const secretKey = process.env.RECAPTCHA_SECRET_KEY || "6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe";
+	try {
+		const response = await axios.post(
+			`https://www.google.com/recaptcha/api/siteverify?secret=${secretKey}&response=${token}`
+		);
+		return response.data.success;
+	} catch (error) {
+		console.error("Captcha verification error:", error);
+		return false;
+	}
+};
+
 app.post("/register", async (req, res) => {
-	const { username, password } = req.body;
+	const { username, password, captchaToken } = req.body;
+
+	// Verify Captcha
+	const isCaptchaValid = await verifyCaptcha(captchaToken);
+	if (!isCaptchaValid) {
+		return res.status(400).json({ Error: "Invalid CAPTCHA. Please try again." });
+	}
+
 	try {
 		const user = await User.findOne({ username });
 		if (user) {
@@ -105,13 +205,25 @@ app.post("/register", async (req, res) => {
 	}
 });
 
-app.post("/login", (req, res, next) => {
+app.post("/login", async (req, res, next) => {
+	const { captchaToken } = req.body;
+
+	// Verify Captcha
+	const isCaptchaValid = await verifyCaptcha(captchaToken);
+	if (!isCaptchaValid) {
+		return res.status(400).json({ error: "Invalid CAPTCHA. Please try again." });
+	}
+
 	passport.authenticate("local", { session: false }, (err, user, info) => {
 		if (err) {
 			return res.status(500).json({ error: "Authentication error" });
 		}
 		if (!user) {
 			return res.status(400).json({ error: "Invalid credentials" });
+		}
+
+		if (user.isBanned) {
+			return res.status(403).json({ error: "Account is banned. Please contact admin." });
 		}
 
 		const payload = { id: user._id, username: user.username };
@@ -126,6 +238,7 @@ app.post("/login", (req, res, next) => {
 				id: user._id,
 				username: user.username,
 				walletAddress: user.walletAddress || null,
+				role: user.role || "user",
 			},
 		});
 	})(req, res, next);
@@ -142,12 +255,20 @@ app.put(
 				return res.status(400).json({ error: "Wallet address is required" });
 			}
 
+			const normalizedWallet = walletAddress.toLowerCase();
+
+			// Check if wallet is already used by another user
+			const existingUser = await User.findOne({ walletAddress: normalizedWallet });
+			if (existingUser && existingUser._id.toString() !== req.user._id.toString()) {
+				return res.status(400).json({ error: "Ví này đã được liên kết với tài khoản khác!" });
+			}
+
 			const user = await User.findById(req.user._id);
 			if (!user) {
 				return res.status(404).json({ error: "User not found" });
 			}
 
-			user.walletAddress = walletAddress.toLowerCase();
+			user.walletAddress = normalizedWallet;
 			await user.save();
 
 			res.status(200).json({
@@ -156,6 +277,9 @@ app.put(
 			});
 		} catch (err) {
 			console.error("Error updating wallet address:", err);
+			if (err.code === 11000) {
+				return res.status(400).json({ error: "Ví này đã được liên kết với tài khoản khác!" });
+			}
 			res.status(500).json({ error: "Failed to update wallet address" });
 		}
 	}
@@ -236,18 +360,21 @@ app.put(
 	async (req, res) => {
 		const userId = req.user._id;
 		const coin = req.body.coin;
+		const normalizedCoin = normalizeToCoinGeckoId(coin);
 		try {
 			const user = await User.findByIdAndUpdate(
 				userId,
-				{ $addToSet: { watchlist: coin } },
+				{ $addToSet: { watchlist: normalizedCoin } },
 				{ new: true }
 			);
 
 			if (!user) {
 				return res.status(404).json({ Error: "User not Found" });
 			}
-
-			return res.status(200).json({ watchlist: user.watchlist });
+			
+			// Clean response
+			const cleanList = user.watchlist.map(id => id.trim().toLowerCase());
+			return res.status(200).json({ watchlist: cleanList });
 		} catch (err) {
 			return res.status(500).json(err.message);
 		}
@@ -260,10 +387,11 @@ app.put(
 	async (req, res) => {
 		const userId = req.user._id;
 		const coin = req.body.coin;
+		const normalizedCoin = normalizeToCoinGeckoId(coin);
 		try {
 			const user = await User.findByIdAndUpdate(
 				userId,
-				{ $pull: { watchlist: coin } },
+				{ $pull: { watchlist: normalizedCoin } },
 				{ new: true }
 			);
 
@@ -271,7 +399,9 @@ app.put(
 				return res.status(404).json({ Error: "User not Found" });
 			}
 
-			return res.status(200).json({ watchlist: user.watchlist });
+			// Clean response
+			const cleanList = user.watchlist.map(id => id.trim().toLowerCase());
+			return res.status(200).json({ watchlist: cleanList });
 		} catch (err) {
 			return res.status(500).json(err.message);
 		}
@@ -372,7 +502,57 @@ app.put(
 		}
 	}
 );
-// Market endpoints (Hybrid: Chainlink preferred, CoinGecko fallback)
+// Market endpoints (Chainlink Only)
+async function fetchTop100() {
+	try {
+		// Use available feed pairs (Chainlink only), no CoinGecko metadata
+		const pairs = listAvailableFeedPairs();
+		const priceData = await getChainlinkPrices(pairs);
+		const normalized = priceData
+			.filter((p) => p.price !== null)
+			.map((p) => {
+				const base = p.coin.replace("-usd", "");
+				const cgId = normalizeToCoinGeckoId(base);
+				// Skip if we cannot map to a CoinGecko id (filters out FX pairs like AUD/USD)
+				if (!cgId) return null;
+				// If mapping couldn't resolve to a known CoinGecko id, drop it to avoid bad portfolio entries
+				const isMapped =
+					mapping[cgId] ||
+					reverseMapping[cgId] ||
+					reverseMapping[base] ||
+					mapping[base];
+				if (!isMapped) return null;
+
+				return {
+					id: cgId,
+					symbol: (cgId || base).toUpperCase(),
+					name: (cgId || base).toUpperCase(),
+					image: null,
+					market_cap: null,
+					market_cap_rank: null,
+					price_change_percentage_24h: null,
+					current_price: p.price,
+					price_source: "Chainlink (Oracle)",
+					dataSource: "chainlink",
+					chainlinkUpdatedAt: p.updatedAt || null,
+					chainlinkIsStale: false,
+				};
+			})
+			.filter(Boolean); // Filter out nulls
+
+		top100Cache = { data: normalized, timestamp: Date.now() };
+		try {
+			if (io) io.emit('top100:update', top100Cache.data);
+		} catch (e) {
+			console.error('Socket emit error:', e?.message || e);
+		}
+		return top100Cache.data;
+	} catch (error) {
+		console.error("Error fetching Top100:", error.message);
+		return top100Cache.data || [];
+	}
+}
+
 app.get("/api/market/top100", async (req, res) => {
 	// serve cached if fresh to avoid rate limits
 	if (top100Cache.data.length && Date.now() - top100Cache.timestamp < TOP100_CACHE_TTL) {
@@ -390,52 +570,9 @@ app.get("/api/market/top100", async (req, res) => {
 		}
 	}
 
-	const fetchPromise = (async () => {
-		try {
-			// Use available feed pairs (Chainlink only), no CoinGecko metadata
-			const pairs = listAvailableFeedPairs();
-			const priceData = await getChainlinkPrices(pairs);
-			const normalized = priceData
-				.filter((p) => p.price !== null)
-				.map((p) => {
-					const base = p.coin.replace("-usd", "");
-					const cgId = normalizeToCoinGeckoId(base);
-					// Skip if we cannot map to a CoinGecko id (filters out FX pairs like AUD/USD)
-					if (!cgId) return null;
-					// If mapping couldn't resolve to a known CoinGecko id, drop it to avoid bad portfolio entries
-					const isMapped =
-						mapping[cgId] ||
-						reverseMapping[cgId] ||
-						reverseMapping[base] ||
-						mapping[base];
-					if (!isMapped) return null;
-
-					return {
-						id: cgId,
-						symbol: (cgId || base).toUpperCase(),
-						name: (cgId || base).toUpperCase(),
-						image: null,
-						market_cap: null,
-						market_cap_rank: null,
-						price_change_percentage_24h: null,
-						current_price: p.price,
-						price_source: "Chainlink (Oracle)",
-						dataSource: "chainlink",
-						chainlinkUpdatedAt: p.updatedAt || null,
-						chainlinkIsStale: false,
-					};
-				});
-			top100Cache = { data: normalized, timestamp: Date.now() };
-			try {
-				if (io) io.emit('top100:update', top100Cache.data);
-			} catch (e) {
-				console.error('Socket emit error:', e?.message || e);
-			}
-			return top100Cache.data;
-		} finally {
-			inFlightTop100 = null;
-		}
-	})();
+	const fetchPromise = fetchTop100().finally(() => {
+		inFlightTop100 = null;
+	});
 
 	inFlightTop100 = fetchPromise;
 
@@ -464,7 +601,7 @@ app.post("/api/prices", async (req, res) => {
 		const normalizedIds = [...new Set(
 			coinIds
 				.map((id) => normalizeToCoinGeckoId(id))
-				.filter((id) => id && isAllowedCoinId(id))
+				.filter((id) => id)
 		)];
 		if (normalizedIds.length === 0) {
 			return res
@@ -742,8 +879,64 @@ io = new Server(server, {
 	}
 });
 
+// --- Lazy Fetching: Subscription Management ---
+const coinSubscribers = new Map(); // coinId -> Set<socketId>
+const userSockets = new Map(); // userId -> socketId (for alerts)
+
 io.on('connection', (socket) => {
 	console.log('Socket connected:', socket.id);
+
+	// Map user to socket for alerts
+	socket.on('join', (userId) => {
+		if (userId) {
+			userSockets.set(userId, socket.id);
+			console.log(`User ${userId} mapped to socket ${socket.id}`);
+		}
+	});
+
+	// Handle subscriptions
+	socket.on('subscribe', (coinIds) => {
+		if (Array.isArray(coinIds)) {
+			coinIds.forEach(id => {
+				if (!coinSubscribers.has(id)) {
+					coinSubscribers.set(id, new Set());
+				}
+				coinSubscribers.get(id).add(socket.id);
+			});
+		}
+	});
+
+	socket.on('unsubscribe', (coinIds) => {
+		if (Array.isArray(coinIds)) {
+			coinIds.forEach(id => {
+				if (coinSubscribers.has(id)) {
+					const subs = coinSubscribers.get(id);
+					subs.delete(socket.id);
+					if (subs.size === 0) {
+						coinSubscribers.delete(id);
+					}
+				}
+			});
+		}
+	});
+
+	socket.on('disconnect', () => {
+		// Cleanup subscriptions
+		for (const [id, subs] of coinSubscribers.entries()) {
+			subs.delete(socket.id);
+			if (subs.size === 0) {
+				coinSubscribers.delete(id);
+			}
+		}
+		// Cleanup user mapping
+		for (const [userId, sockId] of userSockets.entries()) {
+			if (sockId === socket.id) {
+				userSockets.delete(userId);
+				break;
+			}
+		}
+	});
+
 	// Optionally emit current cached top100 on connect
 	if (top100Cache && top100Cache.data && top100Cache.data.length > 0) {
 		socket.emit('top100:update', top100Cache.data);
@@ -757,6 +950,78 @@ server.listen(PORT, () => {
 
 // Cache warming: pre-load top 20 Chainlink feeds on startup
 warmTopFeeds(20).catch((e) => console.error("Warmup error:", e?.message || e));
+
+// Alert Checking Logic
+async function checkAlerts(priceData) {
+	if (!priceData || priceData.length === 0) return;
+
+	// Create a map of current prices for O(1) lookup
+	const priceMap = new Map();
+	priceData.forEach(p => {
+		if (p.current_price) priceMap.set(p.id, p.current_price);
+	});
+
+	// Find all active alerts for these coins
+	const coinIds = Array.from(priceMap.keys());
+	const alerts = await PriceAlert.find({ 
+		status: 'active',
+		coinId: { $in: coinIds }
+	});
+
+	for (const alert of alerts) {
+		const currentPrice = priceMap.get(alert.coinId);
+		let triggered = false;
+
+		if (alert.condition === 'above' && currentPrice >= alert.targetPrice) {
+			triggered = true;
+		} else if (alert.condition === 'below' && currentPrice <= alert.targetPrice) {
+			triggered = true;
+		}
+
+		if (triggered) {
+			// 1. Notify User via Socket
+			const socketId = userSockets.get(alert.user.toString());
+			if (socketId) {
+				io.to(socketId).emit('alert:triggered', {
+					coinId: alert.coinId,
+					coinSymbol: alert.coinSymbol,
+					targetPrice: alert.targetPrice,
+					currentPrice: currentPrice,
+					condition: alert.condition,
+					alertId: alert._id
+				});
+			}
+
+			// 2. Update Alert Status
+			alert.status = 'triggered';
+			await alert.save();
+		}
+	}
+}
+
+// Real-time updates loop (Lazy Fetching)
+setInterval(async () => {
+	if (!io || io.engine.clientsCount === 0) return;
+
+	// Get unique coins needed (Subscribers + Active Alerts could be added here, 
+	// but for now we only check alerts for coins being watched to save RPC calls)
+	const neededCoins = Array.from(coinSubscribers.keys());
+	if (neededCoins.length === 0) return;
+
+	try {
+		// Fetch prices for needed coins (using Chainlink only)
+		const data = await getMergedPriceData(neededCoins, true);
+
+		// Emit updates
+		io.emit('prices:updated', data);
+
+		// Check Alerts
+		await checkAlerts(data);
+
+	} catch (e) {
+		console.error("Lazy fetch error:", e?.message || e);
+	}
+}, 1000).unref();
 
 // Smart refresh: periodically refresh only active coins (those recently requested)
 setInterval(() => {
@@ -797,3 +1062,17 @@ try {
 } catch (e) {
 	console.error("Feed refresh scheduler error:", e?.message || e);
 }
+
+// Get current user profile
+app.get("/me", passport.authenticate("jwt", { session: false }), async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).select("-password");
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
+        res.json(user);
+    } catch (err) {
+        console.error("Error fetching user profile:", err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});

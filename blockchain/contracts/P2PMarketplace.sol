@@ -127,28 +127,65 @@ contract P2PMarketplace {
 
 	function cancelListing(uint256 listingId) external nonReentrant {
 		Listing storage lst = listings[listingId];
-		if (lst.seller != msg.sender) revert NotSeller();
+		if (lst.seller != msg.sender && msg.sender != owner) revert NotSeller();
 		if (lst.status != ListingStatus.Active) revert InvalidStatus();
 
 		lst.status = ListingStatus.Cancelled;
 		uint256 refund = lst.remainingAmount;
 		lst.remainingAmount = 0;
-		require(IERC20(lst.token).transfer(msg.sender, refund), "REFUND_FAIL");
+		require(IERC20(lst.token).transfer(lst.seller, refund), "REFUND_FAIL");
 		emit ListingCancelled(listingId, refund);
 		emit ListingUpdated(listingId, 0, lst.status);
 	}
 
 	// --- Buy fixed price ---
 	function buy(uint256 listingId, uint256 amount) external payable nonReentrant returns (uint256) {
-		return _buy(listingId, amount, false);
+		return _buy(listingId, amount, false, msg.sender);
 	}
 
 	// --- Buy at oracle price ---
 	function buyAtMarket(uint256 listingId, uint256 amount) external payable nonReentrant returns (uint256) {
-		return _buy(listingId, amount, true);
+		return _buy(listingId, amount, true, msg.sender);
 	}
 
-	function _buy(uint256 listingId, uint256 amount, bool useOracle) internal returns (uint256 tradeId) {
+	// --- Buy for another user (e.g. Fiat Gateway) ---
+	function buyFor(uint256 listingId, uint256 amount, address recipient) external payable nonReentrant returns (uint256) {
+		return _buy(listingId, amount, false, recipient);
+	}
+
+	// --- Admin Fill for Fiat (No on-chain payment to seller) ---
+	function fillListingForFiat(uint256 listingId, uint256 amount, address recipient) external nonReentrant returns (uint256 tradeId) {
+		require(msg.sender == owner, "NOT_OWNER");
+		require(amount > 0, "AMOUNT");
+		Listing storage lst = listings[listingId];
+		if (lst.status != ListingStatus.Active) revert InvalidStatus();
+		if (amount > lst.remainingAmount) revert InsufficientAmount();
+
+		// No payment transfer to seller (handled off-chain/Fiat Balance)
+		
+		// transfer asset to recipient
+		require(IERC20(lst.token).transfer(recipient, amount), "TRANSFER_OUT");
+
+		lst.remainingAmount -= amount;
+		if (lst.remainingAmount == 0) {
+			lst.status = ListingStatus.Filled;
+		}
+
+		tradeId = nextTradeId++;
+		trades[tradeId] = Trade({
+			buyer: recipient,
+			listingId: listingId,
+			amount: amount,
+			totalPaid: 0, // Paid in Fiat off-chain
+			usedOraclePrice: false,
+			timestamp: block.timestamp
+		});
+
+		emit TradeExecuted(tradeId, listingId, recipient, amount, 0, false);
+		emit ListingUpdated(listingId, lst.remainingAmount, lst.status);
+	}
+
+	function _buy(uint256 listingId, uint256 amount, bool useOracle, address recipient) internal returns (uint256 tradeId) {
 		require(amount > 0, "AMOUNT");
 		Listing storage lst = listings[listingId];
 		if (lst.status != ListingStatus.Active) revert InvalidStatus();
@@ -160,7 +197,7 @@ contract P2PMarketplace {
 			if (pricePerUnit == 0) revert PriceNotPositive();
 		}
 
-		uint256 total = pricePerUnit * amount;
+		uint256 total = (pricePerUnit * amount) / 1e18;
 
 		// handle payment
 		if (lst.paymentToken == address(0)) {
@@ -175,8 +212,8 @@ contract P2PMarketplace {
 			require(IERC20(lst.paymentToken).transferFrom(msg.sender, lst.seller, total), "PAY_ERC20");
 		}
 
-		// transfer asset to buyer
-		require(IERC20(lst.token).transfer(msg.sender, amount), "TRANSFER_OUT");
+		// transfer asset to recipient
+		require(IERC20(lst.token).transfer(recipient, amount), "TRANSFER_OUT");
 
 		lst.remainingAmount -= amount;
 		if (lst.remainingAmount == 0) {
@@ -185,7 +222,7 @@ contract P2PMarketplace {
 
 		tradeId = nextTradeId++;
 		trades[tradeId] = Trade({
-			buyer: msg.sender,
+			buyer: recipient,
 			listingId: listingId,
 			amount: amount,
 			totalPaid: total,
@@ -193,7 +230,7 @@ contract P2PMarketplace {
 			timestamp: block.timestamp
 		});
 
-		emit TradeExecuted(tradeId, listingId, msg.sender, amount, total, useOracle);
+		emit TradeExecuted(tradeId, listingId, recipient, amount, total, useOracle);
 		emit ListingUpdated(listingId, lst.remainingAmount, lst.status);
 	}
 

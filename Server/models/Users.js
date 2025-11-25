@@ -14,6 +14,22 @@ const UsersSchema = new mongoose.Schema({
 		required: true,
 	},
 
+	role: {
+		type: String,
+		enum: ["user", "admin"],
+		default: "user",
+	},
+
+	isBanned: {
+		type: Boolean,
+		default: false,
+	},
+
+	fiatBalance: {
+		type: Number,
+		default: 0,
+	},
+
 	watchlist: {
 		type: [String],
 		required: true,
@@ -24,6 +40,8 @@ const UsersSchema = new mongoose.Schema({
 		type: String,
 		default: null,
 		trim: true,
+		unique: true,
+		sparse: true,
 	},
 
 	portfolio: {

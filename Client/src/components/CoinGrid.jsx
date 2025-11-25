@@ -40,7 +40,7 @@ const CoinCard = ({ coin, isStarred, toggleWatchlist, onAddClick, onRequireLogin
 	const diffPct = typeof coin.priceDiffPct === "number" ? coin.priceDiffPct : null;
 
 	return (
-		<div className="bg-white dark:bg-gray-800 rounded-xl shadow p-4 flex flex-col gap-3 border border-gray-100 dark:border-gray-700">
+		<div className="bg-white dark:bg-gray-800 rounded-xl shadow p-4 flex flex-col gap-3 border border-gray-100 dark:border-gray-700 h-full">
 			<div className="flex items-center justify-between">
 				<div className="flex items-center gap-3">
 					<div className="flex flex-col">
@@ -98,9 +98,9 @@ const CoinCard = ({ coin, isStarred, toggleWatchlist, onAddClick, onRequireLogin
 				</div>
 			)}
 
-			<div className="mt-1">
+			<div className="mt-auto">
 				<button
-					className="w-full px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-md hover:bg-blue-700 transition-all duration-200 cursor-pointer"
+					className="w-full px-3 py-2 bg-blue-600 text-white text-sm font-semibold rounded-md hover:bg-blue-700 transition-all duration-200 cursor-pointer flex justify-center items-center"
 					onClick={() => {
 						if (isAuthenticated) {
 							onAddClick && onAddClick(coin);

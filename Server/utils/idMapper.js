@@ -59,7 +59,8 @@ function buildMappingFromAddresses() {
         const pairId = normalizePair(p.pair);
         if (!pairId) continue;
         const asset = (p.assetName || '').trim().toLowerCase();
-        if (asset) out[asset] = pairId;
+        const slug = asset.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        if (slug) out[slug] = pairId;
       }
     }
   } catch (_) {}
@@ -70,7 +71,7 @@ const mappingFromAddresses = buildMappingFromAddresses();
 
 const extra = parseExtraMappings(process.env.CHAINLINK_ID_MAP);
 const mapping = { ...mappingFromAddresses, ...mappingFromFile, ...extra };
-const allowedCoinIds = new Set([...supportedIds, ...Object.keys(extra)]);
+const allowedCoinIds = new Set(Object.keys(mapping));
 
 // Build reverse map: chainlink base/pair -> CoinGecko id
 const reverseMapping = Object.entries(mapping).reduce((acc, [cgId, pairId]) => {

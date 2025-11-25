@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 export default function useSignUp(username, password, confirmPassword) {
 	const [error, setError] = useState("");
 	const [loading, setLoading] = useState(false);
+	const [captchaToken, setCaptchaToken] = useState(null);
 	const navigate = useNavigate();
 
 	const handleSubmit = async (e) => {
@@ -22,10 +23,15 @@ export default function useSignUp(username, password, confirmPassword) {
 			return;
 		}
 
+		if (!captchaToken) {
+			setError("Please complete the CAPTCHA");
+			return;
+		}
+
 		setLoading(true);
 
 		try {
-			await authAPI.register(username, password);
+			await authAPI.register(username, password, captchaToken);
 			toast.success(
 				"User registered successfully, Please login to continue.",
 				{
@@ -49,5 +55,6 @@ export default function useSignUp(username, password, confirmPassword) {
 		handleSubmit,
 		loading,
 		error,
+		setCaptchaToken
 	};
 }

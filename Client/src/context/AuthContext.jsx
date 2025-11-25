@@ -15,13 +15,38 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const fetchProfile = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    
+    try {
+        const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+        const res = await fetch(`${API_URL}/me`, {
+            headers: {
+                "Authorization": `Bearer ${token}`
+            }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            setUser(data);
+            localStorage.setItem('user', JSON.stringify(data));
+        }
+    } catch (error) {
+        console.error("Failed to fetch profile:", error);
+    }
+  };
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
     
-    if (token && userData) {
-      setIsAuthenticated(true);
-      setUser(JSON.parse(userData));
+    if (token) {
+        setIsAuthenticated(true);
+        if (userData) {
+            setUser(JSON.parse(userData));
+        }
+        // Always fetch fresh data
+        fetchProfile();
     }
     setLoading(false);
   }, []);
@@ -51,6 +76,7 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     updateUser,
+    fetchProfile,
     loading
   };
 

@@ -3,9 +3,9 @@ import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import { useState } from "react";
 import PortfolioTable from "../components/PortfolioTable";
 import TopCoins from "../components/TopCoins";
-import CoinGeckoAttribution from "../components/CoinGeckoAttribution";
 import DataSourceSummary from "../components/DataSourceSummary";
 import SellModal from "../components/SellModal";
+import CoinMarketplace from "../components/CoinMarketplace";
 import { useCurrency } from "../context/CurrencyContext";
 import useCoins from "../hooks/useCoins";
 import useChart from "../hooks/useChart";
@@ -21,6 +21,7 @@ const Dashboard = ({
 	toggleForm,
 	removeCoin,
 	coinData,
+	onPortfolioUpdate,
 }) => {
 	console.log('📊 Dashboard rendered with portfolio:', portfolio);
 	
@@ -29,6 +30,8 @@ const Dashboard = ({
 	
 	const [sellModalOpen, setSellModalOpen] = useState(false);
 	const [selectedCoin, setSelectedCoin] = useState(null);
+	const [marketplaceOpen, setMarketplaceOpen] = useState(false);
+	const [marketplaceCoin, setMarketplaceCoin] = useState(null);
 	const { currency, formatCurrency } = useCurrency();
 	const { coins, loading, error } = useCoins(portfolio);
 	
@@ -39,6 +42,11 @@ const Dashboard = ({
 	const handleSellClick = (coin) => {
 		setSelectedCoin(coin);
 		setSellModalOpen(true);
+	};
+
+	const handleBuyClick = (coin) => {
+		setMarketplaceCoin(coin);
+		setMarketplaceOpen(true);
 	};
 
 	const handleSellSuccess = () => {
@@ -158,12 +166,11 @@ const Dashboard = ({
 							: "No Coins Added To Portfolio"
 					}
 					onSellClick={handleSellClick}
+					onAddClick={handleBuyClick}
 					totalInvestment={totalInvestment}
 					currentValue={currentValue}
 				/>
-				<div className="text-center mt-2">
-					<CoinGeckoAttribution />
-				</div>
+
 			</div>
 			
 			{sellModalOpen && selectedCoin && (
@@ -171,7 +178,25 @@ const Dashboard = ({
 					coin={selectedCoin}
 					portfolio={portfolio}
 					onClose={() => setSellModalOpen(false)}
-					onSuccess={handleSellSuccess}
+					onSuccess={async () => {
+						handleSellSuccess();
+						onPortfolioUpdate && (await onPortfolioUpdate());
+					}}
+					onPortfolioUpdate={onPortfolioUpdate}
+				/>
+			)}
+			{marketplaceOpen && marketplaceCoin && (
+				<CoinMarketplace
+					coin={marketplaceCoin}
+					onClose={() => {
+						setMarketplaceOpen(false);
+						setMarketplaceCoin(null);
+					}}
+					onBuySuccess={() => {
+						setMarketplaceOpen(false);
+						setMarketplaceCoin(null);
+					}}
+					onPortfolioUpdate={addCoin}
 				/>
 			)}
 		</div>

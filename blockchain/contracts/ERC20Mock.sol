@@ -49,4 +49,10 @@ contract ERC20Mock {
 		balanceOf[to] += amount;
 		emit Transfer(address(0), to, amount);
 	}
+
+	// Simple faucet so users (e.g., via MetaMask) can mint test tokens directly
+	function faucet(uint256 amount) external {
+		require(amount > 0, "AMOUNT");
+		_mint(msg.sender, amount);
+	}
 }

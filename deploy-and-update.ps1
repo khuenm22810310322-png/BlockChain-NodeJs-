@@ -22,10 +22,10 @@ if (-not $nodeRunning) {
 Write-Host "Node is running!" -ForegroundColor Green
 
 # Deploy contract
-Write-Host "`nDeploying P2PMarketplace contract..." -ForegroundColor Yellow
+Write-Host "`nDeploying P2PMarketplace contract and Mock Tokens..." -ForegroundColor Yellow
 Set-Location -Path "blockchain"
 
-$deployOutput = npx hardhat run scripts/deploy.js --network localhost 2>&1 | Out-String
+$deployOutput = npx hardhat run scripts/deploy-full.js --network localhost 2>&1 | Out-String
 
 if ($LASTEXITCODE -eq 0 -or $deployOutput -match "deployed to") {
     Write-Host "`nDeployment successful!" -ForegroundColor Green
@@ -52,6 +52,11 @@ if ($LASTEXITCODE -eq 0 -or $deployOutput -match "deployed to") {
             Set-Content -Path $envPath -Value $envContent -NoNewline
             
             Write-Host "Updated MARKETPLACE_ADDRESS to: $contractAddress" -ForegroundColor Green
+
+            # Copy Artifacts
+            Write-Host "`nCopying updated artifacts to Server..." -ForegroundColor Yellow
+            Copy-Item -Path "blockchain\artifacts\contracts\P2PMarketplace.sol\P2PMarketplace.json" -Destination "Server\artifacts\P2PMarketplace.json" -Force
+            Write-Host "Artifacts copied successfully!" -ForegroundColor Green
             
             # Show next steps
             Write-Host "`n========================================" -ForegroundColor Cyan

@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
 import useLogin from "../hooks/useLogin";
+import ReCAPTCHA from "react-google-recaptcha";
 
 const Login = ({ onLoginSuccess }) => {
 	const [username, setUsername] = useState("");
 	const [password, setPassword] = useState("");
-	const { handleSubmit, loading, error } = useLogin(
+	const { handleSubmit, loading, error, setCaptchaToken } = useLogin(
 		username,
 		password,
 		onLoginSuccess
@@ -53,6 +54,14 @@ const Login = ({ onLoginSuccess }) => {
 							onChange={(e) => setPassword(e.target.value)}
 						/>
 					</div>
+					
+					<div className="flex justify-center mb-4">
+						<ReCAPTCHA
+							sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY || "6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"}
+							onChange={setCaptchaToken}
+						/>
+					</div>
+
 					{error && (
 						<div className=" text-red-700 text-center">{error}</div>
 					)}
