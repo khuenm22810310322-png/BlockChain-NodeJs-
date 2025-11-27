@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../../services/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export default function AdminAnalytics() {
@@ -10,13 +10,10 @@ export default function AdminAnalytics() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const config = { headers: { Authorization: `Bearer ${token}` } };
-
         const [usersRes, volumeRes, coinsRes] = await Promise.all([
-          axios.get('http://localhost:3000/api/admin/stats/users', config),
-          axios.get('http://localhost:3000/api/admin/stats/volume', config),
-          axios.get('http://localhost:3000/api/admin/stats/top-coins', config)
+          api.get('/admin/stats/users'),
+          api.get('/admin/stats/volume'),
+          api.get('/admin/stats/top-coins')
         ]);
 
         setUserStats(usersRes.data);
@@ -51,23 +48,7 @@ export default function AdminAnalytics() {
         </div>
       </div>
 
-      {/* Volume Chart */}
-      <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 h-96">
-        <h3 className="text-xl font-bold text-white mb-4">Transaction Volume (ETH)</h3>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={volumeData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-            <XAxis dataKey="date" stroke="#9CA3AF" />
-            <YAxis stroke="#9CA3AF" />
-            <Tooltip 
-              contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', color: '#fff' }}
-              itemStyle={{ color: '#fff' }}
-            />
-            <Legend />
-            <Bar dataKey="volume" fill="#8884d8" name="Volume (ETH)" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+
 
       {/* Top Coins */}
       <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">

@@ -50,10 +50,32 @@ const cacheManager = getCacheManager();
 // Set security headers
 app.use(helmet());
 
+// CORS: allow production client, local dev (Vite), and Ngrok
+const allowedOrigins = [
+	process.env.CLIENT || "https://cryptotrack-ultimez.vercel.app",
+	"http://localhost:5173",
+	"https://block-chain-node-js.vercel.app",
+];
+app.use(
+	cors({
+		origin: function (origin, callback) {
+			// allow requests with no origin (like curl, Postman)
+			if (!origin) return callback(null, true);
+			// Allow allowedOrigins OR any ngrok-free.app domain (for testing)
+			if (allowedOrigins.includes(origin) || origin.endsWith(".ngrok-free.app")) {
+				return callback(null, true);
+			}
+			console.log("Blocked CORS origin:", origin); // Debug log
+			return callback(new Error("Not allowed by CORS"));
+		},
+		credentials: true,
+	})
+);
+
 // Rate limiting
 const limiter = rateLimit({
 	windowMs: 10 * 60 * 1000, // 10 minutes
-	max: 100, // limit each IP to 100 requests per windowMs
+	max: 1000, // limit each IP to 1000 requests per windowMs
 });
 app.use(limiter);
 
@@ -79,28 +101,6 @@ let top100Cache = { data: [], timestamp: 0 };
 const TOP100_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 let inFlightTop100 = null;
 const SNAPSHOT_INTERVAL_MS = parseInt(process.env.PRICE_SNAPSHOT_INTERVAL_MS || "300000", 10); // default 5m
-
-// CORS: allow production client, local dev (Vite), and Ngrok
-const allowedOrigins = [
-	process.env.CLIENT || "https://cryptotrack-ultimez.vercel.app",
-	"http://localhost:5173",
-	"https://block-chain-node-js.vercel.app",
-];
-app.use(
-	cors({
-		origin: function (origin, callback) {
-			// allow requests with no origin (like curl, Postman)
-			if (!origin) return callback(null, true);
-			// Allow allowedOrigins OR any ngrok-free.app domain (for testing)
-			if (allowedOrigins.includes(origin) || origin.endsWith(".ngrok-free.app")) {
-				return callback(null, true);
-			}
-			console.log("Blocked CORS origin:", origin); // Debug log
-			return callback(new Error("Not allowed by CORS"));
-		},
-		credentials: true,
-	})
-);
 
 const alertsRouter = require("./routes/alerts");
 const PriceAlert = require("./models/PriceAlert");

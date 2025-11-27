@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { marketAPI } from "../services/api"; // <-- THÊM
+import { marketAPI } from "../services/api"; 
 
 export default function useCoins(portfolio) {
 	const portfolioCoins = Object.keys(portfolio); // Đây là mảng ID CoinGecko
@@ -19,10 +19,6 @@ export default function useCoins(portfolio) {
 			}
 
 			try {
-				// BỎ: const coinIds = portfolioCoins.join(",");
-				// BỎ: const res = await fetch(`https...`);
-				// BỎ: const data = await res.json();
-				// THAY THẾ BẰNG:
 				const data = await marketAPI.getPrices(portfolioCoins); // Gọi backend
 				setCoins(data);
 			} catch (err) {

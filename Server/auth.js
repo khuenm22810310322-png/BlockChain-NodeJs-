@@ -5,6 +5,8 @@ const ExtractJwt = require("passport-jwt").ExtractJwt;
 const User = require("./models/Users");
 require("dotenv").config();
 
+//set up passport strategies
+//check username and password for login
 passport.use(
 	new localStrategy(async (username, password, done) => {
 		try {

@@ -1,32 +1,28 @@
-// Data Source Service - dựa trên dataSource từ backend, fallback nhẹ để hiển thị
+// Data Source Service - Hệ thống sử dụng 100% Chainlink Oracle
 
-// Nếu backend chưa gắn dataSource, suy luận đơn giản từ chainlinkPrice
+// Luôn xác định nguồn dữ liệu là Chainlink
 export const addDataSourceInfo = (coins) => {
   return coins.map((coin) => {
-    const ds = (coin.dataSource || (coin.chainlinkPrice ? "chainlink" : "coingecko")).toLowerCase();
     return {
       ...coin,
-      dataSource: ds,
-      isChainlinkSupported: ds === "chainlink",
+      dataSource: "chainlink",
+      isChainlinkSupported: true,
     };
   });
 };
 
-// Thống kê nguồn dữ liệu
+// Thống kê nguồn dữ liệu (Luôn là 100% Chainlink)
 export const getDataSourceStats = (coins) => {
-  const normalized = addDataSourceInfo(coins);
-  const chainlinkCount = normalized.filter((c) => c.dataSource === "chainlink").length;
-  const coingeckoCount = normalized.filter((c) => c.dataSource === "coingecko").length;
-  const total = normalized.length;
+  const total = coins.length;
 
   return {
     chainlink: {
-      count: chainlinkCount,
-      percentage: total > 0 ? Math.round((chainlinkCount / total) * 100) : 0,
+      count: total,
+      percentage: total > 0 ? 100 : 0,
     },
     coingecko: {
-      count: coingeckoCount,
-      percentage: total > 0 ? Math.round((coingeckoCount / total) * 100) : 0,
+      count: 0,
+      percentage: 0,
     },
     total,
   };

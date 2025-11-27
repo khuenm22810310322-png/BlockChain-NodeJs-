@@ -139,7 +139,7 @@ const FiatPurchase = ({ coin, marketPrice, onSuccess, onClose, walletAddress, li
             setIsProcessing(false);
         }
     };
-
+//---------------------------------------------------------------
     const handleVietQRConfirm = async () => {
         setIsProcessing(true);
         try {
